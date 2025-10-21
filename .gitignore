@@ -1,0 +1,12 @@
+clispot
+vendor/
+tmp/
+coverage.out
+.vscode
+/dist
+.env
+.envrc
+manpages/
+dist/
+logs.json
+todo.md

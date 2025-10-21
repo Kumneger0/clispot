@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>clispot Documentation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>clispot Docs</h2>
+        <div class="header-actions">
+          <button class="menu-toggle" aria-label="Toggle navigation menu" title="Toggle navigation menu">
+            &#9776;
+          </button>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#introduction">Introduction</a>
+        <a href="#installation">Installation</a>
+        <a href="#usage">Usage</a>
+        <a href="#stories">Stories</a>
+        <a href="#configuration">Configuration</a>
+        <a href="#troubleshooting">Troubleshooting</a>
+        <a href="#contributing">Contributing</a>
+        <a href="#faq">FAQ</a>
+        <a href="#license">License</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <section id="introduction">
+        <h1>Introduction</h1>
+        <p><strong>clispot</strong> is a Telegram client that runs in your terminal.</p>
+        <div class="demo-wrap">
+          <img src="demo.gif" alt="clispot demo" class="demo-gif" />
+        </div>
+        <ul>
+          <li>Currently supports chatting with personal chats, channels, and has beta support for bots.</li>
+          <li>Lightweight, minimalistic, and terminal-based for basic messaging tasks.</li>
+          <li>Not intended to replace GUI Telegram clients—some advanced features are missing.</li>
+        </ul>
+        <h3>Limitations</h3>
+        <ul>
+          <li><strong>Bot Interaction:</strong> Supported (beta).</li>
+          <li><strong>Media Management:</strong> No advanced media viewing/editing.</li>
+          <li><strong>Voice/Video Calls:</strong> Not supported.</li>
+          <li><strong>Rich Media Previews:</strong> Not displayed.</li>
+          <li><strong>Group Support:</strong> Supported, but you can only write in group chats. You cannot see the full member list.</li>
+          <li><strong>Multi-Account Support:</strong> Only one account at a time.</li>
+        </ul>
+        <p>For a complete Telegram experience, use the official desktop or mobile apps.</p>
+      </section>
+      <section id="installation">
+        <h2>Installation</h2>
+        <h3>1. Download or Build clispot</h3>
+        <ul>
+          <li><strong>Pre-built binaries:</strong> <a href="https://github.com/Kumneger0/clispot/releases" target="_blank">Download from releases page</a> (Linux, macOS).</li>
+          <li><strong>Build from source:</strong> See this <a href="https://github.com/Kumneger0/clispot/blob/main/install.md" target="_blank">guide</a> for instructions.</li>
+          <li><strong>Windows Support:</strong> While not officially supported, you can try running clispot using <a href="https://learn.microsoft.com/en-us/windows/wsl/" target="_blank">Windows Subsystem for Linux (WSL)</a>.</li>
+        </ul>
+        <h3>2. Using Docker</h3>
+        <pre><code>docker run --rm -it -v clispot_data:/root/.clispot \
+  kumneger/clispot:latest
+</code></pre>
+        <p>This persists your session.</p>
+        <p><strong>Note on File Attachments:</strong> When using Docker, clispot runs in an isolated environment and cannot directly access files from your host machine. To attach a file, you first need to copy it into the running Docker container using the <code>docker cp</code> command. For example:</p>
+        <pre><code>docker cp /path/to/your/file.jpg &lt;container_id&gt;:/root/
+</code></pre>
+        <p>Once the file is copied, you can then attach it from within clispot.</p>
+      </section>
+      <section id="usage">
+        <h2>Usage</h2>
+        <h3>Quick Start</h3>
+        <ul>
+                    <li><strong>Login:</strong> Run <code>clispot</code> and follow the prompts if you are not logged in.</li>
+          <li><strong>Logout:</strong> Run <code>clispot logout</code>.</li>
+          <li><strong>Upgrade:</strong> On Debian/Ubuntu/Alpine, run <code>clispot upgrade</code>.</li>
+        </ul>
+        <h3>Layout</h3>
+        <ul>
+          <li><strong>Sidebar:</strong> Your chats list (Users, Groups, Channels).</li>
+          <li><strong>Chat Area:</strong> Messages of the selected chat.</li>
+          <li><strong>Focus:</strong> The active area has a green border. Use Tab to switch.</li>
+        </ul>
+        <h3>Indicators</h3>
+        <ul>
+            <li><span class="yellow-icon">●</span> Online Status: A yellow icon before a user's name indicates they are online.</li>
+            <li><span class="red-icon">●</span> Unread Messages: A red icon followed by a number in brackets (e.g., (3)) indicates the number of unread messages in a chat.</li>
+        </ul>
+        <h3>Navigation & Shortcuts</h3>
+        <ul>
+          <li><strong>Focus</strong>: Tab toggles focus between sidebar and chat.</li>
+          <li><strong>Move</strong>: ↑ / k moves up; ↓ / j moves down.</li>
+          <li><strong>Latest Message</strong>: Shift + ↓ gets the latest message (only in MainView).</li>
+          <li><strong>Filter (sidebar)</strong>: c = Channels, g = Groups, u = Users.</li>
+          <li><strong>Search</strong>: ctrl + k opens search. Type to search; results appear below. Tab switches between input and results. Enter opens selection; Esc closes.</li>
+        </ul>
+        <h3>Working in Chats</h3>
+        <ul>
+          <li>Select messages by moving with ↑/↓ (or k/j) in the chat area.</li>
+          <li><strong>d</strong>: delete • <strong>r</strong>: reply • <strong>e</strong>: edit • <strong>f</strong>: forward • <strong>u</strong>: DM the sender (from a group)</li>
+        </ul>
+        
+        <h3>Compose & Attachments</h3>
+        <ul>
+          <li><strong>ctrl + a</strong>: Toggle the file picker when the input is focused.</li>
+          <li>After picking a file, optionally add a caption, then press Enter to send. You may need to press Tab to focus on the input box after selecting the file.</li>
+          <li>You will see a text indicating that the file is being uploaded.</li>
+        </ul>
+        <h3>Reading Behavior</h3>
+        <ul>
+          <li><strong>Typing indicator</strong>: If enabled, others see “typing…” while you compose.</li>
+          <li><strong>Read receipts</strong> (<code>chat.readReceiptMode</code>):
+            <ul>
+              <li><code>default</code>: Mark read only when you interact (e.g., reply).</li>
+              <li><code>instant</code>: Mark read as soon as you view.</li>
+              <li><code>never</code>: Never mark read automatically.</li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+      <section id="stories">
+        <h2>Stories</h2>
+        <ul>
+          <li><strong>View Stories</strong>: Press <code>alt + s</code> to open the stories modal.</li>
+          <li><strong>Story Indicator</strong>: A number above the chat list in the sidebar indicates the number of available stories.</li>
+          <li><strong>Navigate Stories</strong>: Use the arrow keys to navigate through the list of users with stories.</li>
+          <li><strong>View a User's Story</strong>: Press <code>enter</code> to view the stories of the selected user.</li>
+        </ul>
+      </section>
+      <section id="configuration">
+        <h2>Configuration</h2>
+        <p>Customize your clispot experience by editing the config file at <code>~/.clispot/user.config.json</code>.</p>
+        <h3>Example Configuration</h3>
+        <pre><code>{
+  "chat": {
+    "sendTypingState": true,
+    "readReceiptMode": "default"
+  },
+  readStories:false
+  "privacy": {
+    "lastSeenVisibility": "everyone"
+  },
+  "notifications": {
+    "enabled": true,
+    "showMessagePreview": true
+  }
+}</code></pre>
+        <h3>Options</h3>
+        <ul>
+          <li><strong>chat.sendTypingState</strong>: Show "typing..." status (<code>true</code> = default, <code>false</code> = never show).</li>
+          <li><strong>chat.readReceiptMode</strong>:
+            <ul>
+              <li><code>"default"</code>: Marks as read only when you interact (default).</li>
+              <li><code>"instant"</code>: Marks as read when you view messages.</li>
+              <li><code>"never"</code>: Never automatically marks as read.</li>
+            </ul>
+          </li>
+          <li><strong>readStories</strong>: Whether to mark stories as read; defaults to <code>false</code>.</li>
+          <li><strong>privacy.lastSeenVisibility</strong>:
+            <ul>
+              <li><code>"everyone"</code>: Anyone can see your last seen time.</li>
+              <li><code>"contacts"</code>: Only contacts can see your last seen.</li>
+              <li><code>"nobody"</code>: No one can see your last seen.</li>
+              <li>If not set: Uses your Telegram privacy settings.</li>
+            </ul>
+          </li>
+          <li><strong>notifications.enabled</strong>: Master switch for notifications (<code>true</code> = default, <code>false</code> = disable all).</li>
+          <li><strong>notifications.showMessagePreview</strong>: Show message content in notifications (<code>true</code> = default, <code>false</code> = only sender name).</li>
+        </ul>
+        <p>All settings are optional. Changes take effect the next time you start clispot.</p>
+      </section>
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <ul>
+          <li><strong>File picker does not open</strong>: Make sure the message input is focused, then press <code>ctrl + a</code> again. Update to the latest version if it persists.</li>
+          <li><strong>Messages not marked read</strong>: Set <code>chat.readReceiptMode</code> to <code>instant</code>.</li>
+          <li><strong>Others cannot see typing</strong>: Set <code>chat.sendTypingState</code> to <code>true</code>.</li>
+          <li><strong>Where is data stored</strong>: App data and session live under <code>~/.clispot/</code>.</li>
+        </ul>
+      </section>
+      <section id="contributing">
+        <h2>Contributing</h2>
+        <p>We welcome contributions to clispot! To get started:</p>
+        <ul>
+          <li>Read the <a href="../CONTRIBUTING.md" target="_blank">CONTRIBUTING.md</a> file for detailed guidelines.</li>
+          <li>If you encounter issues or have suggestions, <a href="https://github.com/Kumneger0/clispot/issues" target="_blank">open an issue on GitHub</a>.</li>
+          
+        </ul>
+        <p>Thank you for your interest in improving clispot!</p>
+      </section>
+      <section id="faq">
+        <h2>FAQ</h2>
+        <h4>What platforms are supported?</h4>
+        <p>clispot provides pre-built binaries for Linux and macOS. Windows is not officially supported, but you can try running clispot using <a href="https://learn.microsoft.com/en-us/windows/wsl/" target="_blank">Windows Subsystem for Linux (WSL)</a>.</p>
+        <h4>Can I use multiple Telegram accounts?</h4>
+        <p>No, only a single Telegram account is supported at a time.</p>
+        <h4>Does clispot support bots, groups, or media management?</h4>
+        <p>Bot interaction is now supported (beta). Group chat is supported for writing messages, but you cannot view the full member list. Advanced media features are not yet implemented, but are planned for future releases.</p>
+        <h4>Where is my session data stored?</h4>
+        <p>Session data is stored in <code>~/.clispot/</code> on your system. If using Docker, a volume is used to persist this data.</p>
+        <h4>How do I update clispot?</h4>
+        <p>Download the latest release from the <a href="https://github.com/Kumneger0/clispot/releases" target="_blank">releases page</a> or rebuild from source. If you are on Debian, Ubuntu, or Alpine Linux, you can upgrade to the latest version using <code>clispot upgrade</code>.</p>
+      </section>
+      <section id="license">
+        <h2>License</h2>
+        <p>This project is licensed under the MIT License. See the <a href="../LICENSE" target="_blank">LICENSE</a> file for details.</p>
+      </section>
+      <div class="github-link-footer">
+    <p>Find us on <a href="https://github.com/Kumneger0/clispot" target="_blank">GitHub</a></p>
+  </div>
+    </main>
+  </div>
+  
+  <script src="script.js"></script>
+</body>
+</html>

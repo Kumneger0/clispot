@@ -1,0 +1,265 @@
+package spotify
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math/rand"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"os/user"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/kumneger0/clispot/internal/types"
+)
+
+var (
+	authBaseURL   = "https://accounts.spotify.com/authorize"
+	scope         = "user-read-private user-read-email playlist-read-private user-library-read"
+	TOKEN_URL     = "https://accounts.spotify.com/api/token"
+	REDIRECT_URL  = "http://127.0.0.1:9292/callback"
+	CLIENT_ID     = "08f95a2513d3417fb07f6e9f3f342670"
+	CLIENT_SECRET = "c1e15d75ad424ff09af02f37e10a6419"
+)
+
+func Authenticate() {
+	CLIENT_ID, ok := os.LookupEnv("Client_ID")
+	if !ok {
+		fmt.Println("Client_ID environment variable not set")
+		os.Exit(1)
+	}
+
+	if CLIENT_ID == "" {
+		fmt.Println("Client_ID environment variable is empty")
+		os.Exit(1)
+	}
+
+	var state = generateRandomString(16)
+	fmt.Println("Starting server on port 9292")
+
+	logAuthenticationUrl(state)
+
+	mux := http.NewServeMux()
+	server := &http.Server{
+		Addr:    ":9292",
+		Handler: mux,
+	}
+
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		error := r.URL.Query().Get("error")
+		if error != "" {
+			fmt.Fprintf(w, "Error: %s\n", error)
+			return
+		}
+		if state != r.URL.Query().Get("state") {
+			fmt.Fprintf(w, "State mismatch")
+			return
+		}
+		code := r.URL.Query().Get("code")
+
+		formData := url.Values{}
+		formData.Set("code", code)
+		formData.Set("redirect_uri", REDIRECT_URL)
+		formData.Set("grant_type", "authorization_code")
+
+		err := getToken(formData.Encode())
+		if err != nil {
+			fmt.Fprintf(w, "Error: %s\n", err)
+			return
+		}
+		fmt.Fprintf(w, "go back to your terminal")
+		go func() {
+			server.Close()
+		}()
+	})
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		fmt.Println("🚀 Server started at http://localhost:9292")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("❌ Server error: %v\n", err)
+		}
+	})
+
+	wg.Wait()
+
+}
+
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var result string
+	for range length {
+		result += string(charset[rand.Intn(len(charset))])
+	}
+	return result
+}
+
+func logAuthenticationUrl(state string) {
+	params := url.Values{}
+	params.Set("client_id", CLIENT_ID)
+	params.Set("response_type", "code")
+	params.Set("redirect_uri", REDIRECT_URL)
+	params.Set("scope", scope)
+	params.Set("state", state)
+	fullURLToRedirect := fmt.Sprintf("%s?%s", authBaseURL, params.Encode())
+	fmt.Println("opening the link using default browser")
+	openFileInDefaultApp(fullURLToRedirect)
+	fmt.Println("click the following link to authenticate ")
+	fmt.Println(fullURLToRedirect)
+}
+
+func openFileInDefaultApp(path string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", path)
+	case "darwin":
+		cmd = exec.Command("open", path)
+	case "windows":
+		//fuck you windows 🖕 i hate you
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	return cmd.Start()
+}
+
+func getToken(encodedFormData string) error {
+	authString := CLIENT_ID + ":" + CLIENT_SECRET
+	base64Auth := base64.StdEncoding.EncodeToString([]byte(authString))
+
+	req, err := http.NewRequest("POST", TOKEN_URL, strings.NewReader(encodedFormData))
+	if err != nil {
+		fmt.Printf("Error creating request: %v\n", err)
+		return err
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Authorization", "Basic "+base64Auth)
+
+	client := &http.Client{}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("Unexpected status code: %d\n", res.StatusCode)
+	}
+
+	jsonBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	var tokenResponse types.UserTokenInfo
+	if err := json.Unmarshal(jsonBytes, &tokenResponse); err != nil {
+		return err
+	}
+
+	if tokenResponse.AccessToken == "" {
+		return errors.New("access token not found in response")
+	}
+	fmt.Println("got the token ", tokenResponse)
+	err = saveUserCredentials(tokenResponse)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func RefreshToken(refreshToken string) error {
+	formData := url.Values{}
+	formData.Set("grant_type", "refresh_token")
+	formData.Set("refresh_token", refreshToken)
+	return getToken(formData.Encode())
+}
+
+func saveUserCredentials(userCredentials types.UserTokenInfo) error {
+	fmt.Println("saving the credentials")
+	currentUser, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("error getting current user: %w", err)
+	}
+	homeDir := currentUser.HomeDir
+
+	dirPath := filepath.Join(homeDir, ".clispot")
+	filePath := filepath.Join(dirPath, "token.json")
+
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		fmt.Println("creating the directory:", dirPath)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return fmt.Errorf("error creating directory %s: %w", dirPath, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("error checking directory %s: %w", dirPath, err)
+	}
+
+	fmt.Println("creating token.json file at:", filePath)
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("error creating file %s: %w", filePath, err)
+	}
+
+	userCredentials.ExpiresAt = time.Now().Add(time.Duration(userCredentials.ExpiresIn) * time.Second).Unix()
+
+	defer file.Close()
+	jsonBytes, err := json.Marshal(userCredentials)
+	if err != nil {
+		return fmt.Errorf("marshal error: %w", err)
+	}
+
+	writtenByte, err := file.Write(jsonBytes)
+	if err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
+	}
+	fmt.Printf("wrote %d bytes to file", writtenByte)
+	return nil
+}
+
+func ReadUserCredentials() (types.UserTokenInfo, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return types.UserTokenInfo{}, err
+	}
+	homeDir := currentUser.HomeDir
+	dirPath := filepath.Join(homeDir, ".clispot")
+	clispotCredentialPath := filepath.Join(dirPath, "token.json")
+
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		return types.UserTokenInfo{}, errors.New("user credentials not found")
+	}
+	if _, err := os.Stat(clispotCredentialPath); err != nil {
+		return types.UserTokenInfo{}, errors.New("user credentials not found")
+	}
+
+	file, err := os.Open(clispotCredentialPath)
+	if err != nil {
+		return types.UserTokenInfo{}, err
+	}
+	defer file.Close()
+
+	jsonBytes, err := io.ReadAll(file)
+	if err != nil {
+		return types.UserTokenInfo{}, err
+	}
+
+	var tokenResponse types.UserTokenInfo
+	if err := json.Unmarshal(jsonBytes, &tokenResponse); err != nil {
+		return types.UserTokenInfo{}, err
+	}
+
+	return tokenResponse, nil
+}

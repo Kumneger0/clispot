@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+
+# Commit message linting using commitlint (Conventional Commits)
+# Requires Node to be available; uses npx for zero-setup.
+
+if command -v npx >/dev/null 2>&1; then
+  # Use npx with transient installs so @commitlint/config-conventional is always available
+ make lint && npx --yes -p @commitlint/cli -p @commitlint/config-conventional \
+    commitlint --extends @commitlint/config-conventional --edit "$1"
+  status=$?
+else
+  echo "commitlint: 'npx' not found; skipping commit message lint."
+  status=0
+fi
+
+if [ $status -ne 0 ]; then
+  echo
+  echo "✖ Commit message failed commitlint check."
+  echo "  Use format: type(scope): subject — e.g., 'feat(ui): add copy button'"
+  exit $status
+fi
+
+exit 0

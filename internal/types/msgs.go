@@ -1,5 +1,5 @@
-package types
+package types // nolint:revive
 
-type PlayMusicMsg struct {
-	MusicPath string
-}
+// type PlayMusicMsg struct {
+// 	MusicPath string
+// }

@@ -1,0 +1,47 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - ineffassign
+    - misspell
+    - revive
+  settings:
+    lll:
+      line-length: 180
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: exported
+        - name: indent-error-flow
+        - name: error-naming
+        - name: if-return
+        - name: time-naming
+        - name: receiver-naming
+        - name: empty-lines
+        - name: var-naming
+        - name: superfluous-else
+        - name: unconditional-recursion
+        - name: import-shadowing
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

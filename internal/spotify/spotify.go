@@ -10,16 +10,16 @@ import (
 
 const (
 	//playlist base url
-	PLAYLIST_BASE = "https://api.spotify.com/v1/me/playlists/"
+	playlistBase = "https://api.spotify.com/v1/me/playlists/"
 	//featured playlist endpoint
-	FEATURED_PLAYLIST_URL = "https://api.spotify.com/v1/browse/featured-playlists"
+	featuredPlaylistBase = "https://api.spotify.com/v1/browse/featured-playlists"
 	//tracks base url
-	TRACKS_BASE = "https://api.spotify.com/v1/tracks/"
+	tracksBase = "https://api.spotify.com/v1/tracks/"
 	//user profile base url
-	USER_PROFILE_BASE = "https://api.spotify.com/v1/me/"
+	userProfileBase = "https://api.spotify.com/v1/me/"
 )
 
-type API_URLS interface {
+type APIURLS interface {
 	GetPlaylistBaseURL() string
 	GetFeaturedPlayListURL() string
 	GetTrackBaseURL() string
@@ -29,19 +29,19 @@ type API_URLS interface {
 
 type apiURL struct{}
 
-var ApiURL API_URLS = apiURL{}
+var APIURL APIURLS = apiURL{}
 
 func (a apiURL) GetPlaylistBaseURL() string {
-	return PLAYLIST_BASE
+	return playlistBase
 }
 func (a apiURL) GetFeaturedPlayListURL() string {
-	return FEATURED_PLAYLIST_URL
+	return featuredPlaylistBase
 }
 func (a apiURL) GetTrackBaseURL() string {
-	return TRACKS_BASE
+	return tracksBase
 }
 func (a apiURL) GetUserProfileBaseURL() string {
-	return USER_PROFILE_BASE
+	return userProfileBase
 }
 
 func (a apiURL) GetPlaylistItems(playlistID string) string {
@@ -67,7 +67,7 @@ func makeRequest(method string, url string, authorizationHeader string) (*http.R
 
 func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", PLAYLIST_BASE, authorizationHeader)
+	resp, err := makeRequest("GET", playlistBase, authorizationHeader)
 	if err != nil {
 		return nil, err
 	}
@@ -84,13 +84,11 @@ func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) 
 
 func GetFeaturedPlaylist(accessToken string) (*types.FeaturedPlaylistsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", FEATURED_PLAYLIST_URL, authorizationHeader)
+	resp, err := makeRequest("GET", featuredPlaylistBase, authorizationHeader)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	fmt.Println("error", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -104,14 +102,12 @@ func GetFeaturedPlaylist(accessToken string) (*types.FeaturedPlaylistsResponse, 
 
 func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	playlistItemsURL := ApiURL.GetPlaylistItems(playlistID)
+	playlistItemsURL := APIURL.GetPlaylistItems(playlistID)
 	resp, err := makeRequest("GET", playlistItemsURL, authorizationHeader)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	fmt.Println("error", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -125,7 +121,7 @@ func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistIte
 
 func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", USER_PROFILE_BASE, authorizationHeader)
+	resp, err := makeRequest("GET", userProfileBase, authorizationHeader)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +138,7 @@ func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 
 func GetTrack(trackID string, accessToken string) (*types.SpotifyTrack, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", TRACKS_BASE, authorizationHeader)
+	resp, err := makeRequest("GET", tracksBase, authorizationHeader)
 	if err != nil {
 		return nil, err
 	}

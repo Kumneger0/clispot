@@ -1,4 +1,4 @@
-package types
+package types // nolint:revive
 
 type SavedAlbumsResponse struct {
 	Href     string       `json:"href"`

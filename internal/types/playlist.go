@@ -1,4 +1,4 @@
-package types
+package types // nolint:revive
 
 type SpotifyPlaylist struct {
 	Collaborative bool   `json:"collaborative"`

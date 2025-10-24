@@ -38,9 +38,10 @@ func main() {
 	}
 
 	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-		err = spotify.RefreshToken(token.RefreshToken)
+		token, err = spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
-			fmt.Println("refresh token error", err)
+			//TODO:show the error for the user
+			os.Exit(1)
 		}
 	}
 
@@ -73,5 +74,10 @@ func main() {
 	}
 
 	Program := tea.NewProgram(model, tea.WithAltScreen())
-	Program.Run()
+
+	_, err = Program.Run()
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 }

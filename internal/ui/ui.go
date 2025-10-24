@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,9 +22,13 @@ const (
 
 type Model struct {
 	Playlist              list.Model
-	UserTokenInfo         types.UserTokenInfo
+	UserTokenInfo         *types.UserTokenInfo
 	SelectedPlayListItems list.Model
 	FocusedOn             FocusedOn
+	PlayerProcess         *os.Process
+	SelectedTrackID       *string
+	Height                int
+	Width                 int
 }
 
 func (m Model) Init() tea.Cmd {
@@ -33,12 +38,14 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width - 4
+		m.Height = msg.Height - 4
+		return m, nil
 	case tea.KeyMsg:
 		model, cmd := m.handleKeyPress(msg)
 		m = model
 		cmds = append(cmds, cmd)
-	case types.PlayMusicMsg:
-		//TODO: implement music playing
 	default:
 		//TODO: do something here if no key matched
 	}
@@ -82,7 +89,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		// find the song on youtube and start streaming
 		selectedMusic, ok := m.SelectedPlayListItems.SelectedItem().(types.PlaylistTrackObject)
 		if !ok {
-			fmt.Println("uff we have fucked up")
+			//TODO: show some kind of error message
 			return m, nil
 		}
 		trackName := selectedMusic.Track.Name
@@ -92,18 +99,22 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			artistNames = append(artistNames, artist.Name)
 		}
 
-		musicPath, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames)
+		playerProcess := m.PlayerProcess
+
+		if playerProcess != nil {
+			_ = playerProcess.Kill()
+			//TODO:Show error message
+		}
+
+		process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames)
 		if err != nil {
 			//TODO: implement some kind of way to show the error message
 			return m, nil
 		}
 
-		cmd := func() tea.Msg {
-			return types.PlayMusicMsg{
-				MusicPath: musicPath,
-			}
-		}
-		return m, cmd
+		m.PlayerProcess = process
+		m.SelectedTrackID = &selectedMusic.Track.ID
+		return m, nil
 	}
 	selectedItem, ok := m.Playlist.SelectedItem().(types.SpotifyPlaylist)
 	if !ok {
@@ -113,7 +124,6 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 	if err != nil {
 		//TODO:  log error using slog
-		fmt.Println("err", err)
 		return m, nil
 	}
 
@@ -128,8 +138,24 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	m.Playlist.Title = "Playlist"
+	m.SelectedPlayListItems.Title = "Tracks"
+
+	m.Playlist.SetShowFilter(false)
+	m.Playlist.SetShowPagination(false)
+	m.Playlist.SetShowHelp(false)
+	m.Playlist.SetShowStatusBar(false)
+
+	dimensions := calculateLayoutDimensions(&m)
+	updateListDimensions(&m, dimensions)
+
+	m.SelectedPlayListItems.SetShowFilter(false)
+	m.SelectedPlayListItems.SetShowPagination(false)
+	m.SelectedPlayListItems.SetShowHelp(false)
+	m.SelectedPlayListItems.SetShowStatusBar(false)
 	playlistView := m.Playlist.View()
 	selectedPlaylistMusicView := m.SelectedPlayListItems.View()
+
 	combinedView := lipgloss.JoinHorizontal(lipgloss.Top, playlistView, selectedPlaylistMusicView)
 	return combinedView
 }
@@ -162,6 +188,28 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			fmt.Fprint(w, normalStyle.Render(" "+str+" "))
 		}
 	default:
-		fmt.Println("we fucked up")
 	}
+}
+
+type layoutDimensions struct {
+	sidebarWidth  int
+	mainWidth     int
+	contentHeight int
+	inputHeight   int
+}
+
+func calculateLayoutDimensions(m *Model) layoutDimensions {
+	sidebarWidth := m.Width * 30 / 100
+	return layoutDimensions{
+		sidebarWidth:  sidebarWidth,
+		mainWidth:     (m.Width - sidebarWidth) * 90 / 100,
+		contentHeight: m.Height * 90 / 100,
+		inputHeight:   m.Height - (m.Height * 90 / 100),
+	}
+}
+
+func updateListDimensions(m *Model, d layoutDimensions) {
+	listHeight := d.contentHeight - 4
+	m.Playlist.SetHeight(listHeight)
+	m.Playlist.SetWidth(d.sidebarWidth)
 }

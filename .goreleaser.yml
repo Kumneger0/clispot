@@ -1,5 +1,5 @@
 version: 2
-project_name: cligram
+project_name: clispot
 env:
   - GO111MODULE=on
   - CGO_ENABLED=0
@@ -8,8 +8,8 @@ before:
     - ./scripts/manpages.sh
     - ./scripts/completions.sh
 builds:
-  - id: cligram
-    binary: cligram
+  - id: clispot
+    binary: clispot
     main: .
     ldflags: -s -w -X main.version={{ .Version }}
     goos:
@@ -23,7 +23,7 @@ builds:
 archives:
   -
     ids:
-      - cligram
+      - clispot
     format_overrides:
     name_template: >-
       {{ .ProjectName }}_
@@ -32,9 +32,9 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
 nfpms:
   - ids:
-      - cligram
+      - clispot
     vendor: kumneger0
-    homepage:  https://github.com/kumneger0/cligram
+    homepage:  https://github.com/kumneger0/clispot
     maintainer: "Kumneger wondimu <Kumnegerwondimu@gmail.com>"
     description: "CLI-based Telegram client"
     license: GPL-3.0
@@ -44,20 +44,20 @@ nfpms:
       - rpm
     bindir: /usr/bin
     contents:
-      - src: ./manpages/cligram.1.gz
-        dst: /usr/share/man/man1/cligram.1.gz
+      - src: ./manpages/clispot.1.gz
+        dst: /usr/share/man/man1/clispot.1.gz
         file_info:
           mode: 0644
-      - src: ./completions/cligram.bash
-        dst: /usr/share/bash-completion/completions/cligram
+      - src: ./completions/clispot.bash
+        dst: /usr/share/bash-completion/completions/clispot
         file_info:
           mode: 0644
-      - src: ./completions/cligram.fish
-        dst: /usr/share/fish/vendor_completions.d/cligram.fish
+      - src: ./completions/clispot.fish
+        dst: /usr/share/fish/vendor_completions.d/clispot.fish
         file_info:
           mode: 0644
-      - src: ./completions/cligram.zsh
-        dst:  /usr/share/zsh/vendor-completions/_cligram
+      - src: ./completions/clispot.zsh
+        dst:  /usr/share/zsh/vendor-completions/_clispot
         file_info:
           mode: 0644
 checksum:

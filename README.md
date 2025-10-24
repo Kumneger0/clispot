@@ -1,21 +1,12 @@
 # clispot
 
-clispot is a Telegram client written in Go Programming language.
+clispot is cli based spotify client
 
 For full documentation, please visit: [kumneger0.github.io/clispot](https://kumneger0.github.io/clispot)
 
 ## Demo
 
-![clispot demo](docs/demo.gif)
-
-## Features
-
-*   View user stories anonymously (the owner won't be notified).
-*   Read messages anonymously (the sender won’t know when you’ve read them).
-*   Send and receive messages.
-*   Chat with users, groups, and channels.
-*   File attachments.
-*   Customizable notifications.
+//add demo here
 
 ## Contributing
 

@@ -3,6 +3,7 @@ package spotify
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/kumneger0/clispot/internal/types"
@@ -59,6 +60,7 @@ type Decoder struct {
 func makeRequest(method string, url string, authorizationHeader string) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	req.Header.Add("Authorization", authorizationHeader)
@@ -69,6 +71,7 @@ func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) 
 	authorizationHeader := "Bearer " + accessToken
 	resp, err := makeRequest("GET", playlistBase, authorizationHeader)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -86,15 +89,19 @@ func GetFeaturedPlaylist(accessToken string) (*types.FeaturedPlaylistsResponse, 
 	authorizationHeader := "Bearer " + accessToken
 	resp, err := makeRequest("GET", featuredPlaylistBase, authorizationHeader)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
+		slog.Error(errMsg)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 	var featuredPlaylist *types.FeaturedPlaylistsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&featuredPlaylist); err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	return featuredPlaylist, nil
@@ -105,15 +112,19 @@ func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistIte
 	playlistItemsURL := APIURL.GetPlaylistItems(playlistID)
 	resp, err := makeRequest("GET", playlistItemsURL, authorizationHeader)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
+		slog.Error(errMsg)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 	var featuredPlaylist *types.PlaylistItemsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&featuredPlaylist); err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	return featuredPlaylist, nil
@@ -127,10 +138,13 @@ func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
+		slog.Error(errMsg)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 	var userProfile types.SpotifyUserProfile
 	if err := json.NewDecoder(resp.Body).Decode(&userProfile); err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	return &userProfile, nil
@@ -140,14 +154,18 @@ func GetTrack(trackID string, accessToken string) (*types.SpotifyTrack, error) {
 	authorizationHeader := "Bearer " + accessToken
 	resp, err := makeRequest("GET", tracksBase, authorizationHeader)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
+		slog.Error(errMsg)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 	var track types.SpotifyTrack
 	if err := json.NewDecoder(resp.Body).Decode(&track); err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	return &track, nil

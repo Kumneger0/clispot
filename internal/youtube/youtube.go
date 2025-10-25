@@ -13,7 +13,7 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string) (
 		searchQuery = searchQuery + artistNames[0]
 	}
 
-	yt := exec.Command("ytdlp",
+	yt := exec.Command("yt-dlp",
 		searchQuery,
 		"-f", "bestaudio[ext=m4a]/bestaudio",
 		"--downloader", "aria2c",
@@ -25,11 +25,14 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string) (
 
 	ff := exec.Command("ffplay", "-nodisp", "-autoexit", "-i", "-")
 
+	ytStderr, _ := os.Create("ytStdErr.debug.txt")
+	ffStderr, _ := os.Create("ffStdErr.debug.txt")
+
 	r, w := io.Pipe()
 	yt.Stdout = w
 	ff.Stdin = r
-	yt.Stderr = nil
-	ff.Stderr = nil
+	yt.Stderr = ytStderr
+	ff.Stderr = ffStderr
 
 	if err := ff.Start(); err != nil {
 		return nil, err

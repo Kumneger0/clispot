@@ -10,3 +10,5 @@ manpages/
 dist/
 logs.json
 todo.md
+*.debug.txt
+mock-ui.txt

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -67,10 +68,12 @@ func Authenticate() {
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		error := r.URL.Query().Get("error")
 		if error != "" {
+			slog.Error(error)
 			fmt.Fprintf(w, "Error: %s\n", error)
 			return
 		}
 		if state != r.URL.Query().Get("state") {
+			slog.Error("State mismatch")
 			fmt.Fprintf(w, "State mismatch")
 			return
 		}
@@ -83,6 +86,7 @@ func Authenticate() {
 
 		_, err := getToken(formData.Encode())
 		if err != nil {
+			slog.Error(err.Error())
 			fmt.Fprintf(w, "Error: %s\n", err)
 			return
 		}
@@ -160,6 +164,7 @@ func getToken(encodedFormData string) (*types.UserTokenInfo, error) {
 
 	res, err := client.Do(req)
 	if err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 	defer res.Body.Close()
@@ -170,19 +175,23 @@ func getToken(encodedFormData string) (*types.UserTokenInfo, error) {
 
 	jsonBytes, err := io.ReadAll(res.Body)
 	if err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 
 	var tokenResponse types.UserTokenInfo
 	if err := json.Unmarshal(jsonBytes, &tokenResponse); err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 
 	if tokenResponse.AccessToken == "" {
+		slog.Error("access token not found in response")
 		return &types.UserTokenInfo{}, errors.New("access token not found in response")
 	}
 	err = saveUserCredentials(tokenResponse)
 	if err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 	return &tokenResponse, nil
@@ -198,6 +207,7 @@ func RefreshToken(refreshToken string) (*types.UserTokenInfo, error) {
 func saveUserCredentials(userCredentials types.UserTokenInfo) error {
 	currentUser, err := user.Current()
 	if err != nil {
+		slog.Error(err.Error())
 		return fmt.Errorf("error getting current user: %w", err)
 	}
 	homeDir := currentUser.HomeDir
@@ -207,14 +217,17 @@ func saveUserCredentials(userCredentials types.UserTokenInfo) error {
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			slog.Error(err.Error())
 			return fmt.Errorf("error creating directory %s: %w", dirPath, err)
 		}
 	} else if err != nil {
+		slog.Error(err.Error())
 		return fmt.Errorf("error checking directory %s: %w", dirPath, err)
 	}
 
 	file, err := os.Create(filePath)
 	if err != nil {
+		slog.Error(err.Error())
 		return fmt.Errorf("error creating file %s: %w", filePath, err)
 	}
 
@@ -223,11 +236,13 @@ func saveUserCredentials(userCredentials types.UserTokenInfo) error {
 	defer file.Close()
 	jsonBytes, err := json.Marshal(userCredentials)
 	if err != nil {
+		slog.Error(err.Error())
 		return fmt.Errorf("marshal error: %w", err)
 	}
 
 	_, err = file.Write(jsonBytes)
 	if err != nil {
+		slog.Error(err.Error())
 		return fmt.Errorf("error writing to file: %w", err)
 	}
 	return nil
@@ -243,25 +258,30 @@ func ReadUserCredentials() (*types.UserTokenInfo, error) {
 	clispotCredentialPath := filepath.Join(dirPath, "token.json")
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, errors.New("user credentials not found")
 	}
 	if _, err := os.Stat(clispotCredentialPath); err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, errors.New("user credentials not found")
 	}
 
 	file, err := os.Open(clispotCredentialPath)
 	if err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 	defer file.Close()
 
 	jsonBytes, err := io.ReadAll(file)
 	if err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 
 	var tokenResponse types.UserTokenInfo
 	if err := json.Unmarshal(jsonBytes, &tokenResponse); err != nil {
+		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err
 	}
 

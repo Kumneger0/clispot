@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
+	"github.com/kumneger0/clispot/internal/logger"
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
@@ -26,22 +28,29 @@ type Token struct {
 }
 
 func main() {
+	logger := logger.Init()
+	defer logger.Close()
+
+	slog.Info("starting the application")
+
 	err := godotenv.Load()
 	if err != nil {
+		slog.Info(err.Error())
 		log.Fatal("Error loading .env file")
 	}
 
 	token, err := spotify.ReadUserCredentials()
 
 	if err != nil {
+		slog.Error(err.Error())
 		spotify.Authenticate()
 	}
 
 	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
 		token, err = spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
-			//TODO:show the error for the user
-			os.Exit(1)
+			slog.Error(err.Error())
+			log.Fatal(err)
 		}
 	}
 
@@ -53,6 +62,7 @@ func main() {
 		}
 		userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
 		if err != nil || userPlayList == nil {
+			slog.Error(err.Error())
 			fmt.Fprintln(os.Stdout, err)
 			return []types.SpotifyPlaylist{}
 		}
@@ -65,11 +75,12 @@ func main() {
 	}
 
 	playlists := list.New(items, ui.CustomDelegate{}, 10, 20)
+	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{}, 10, 20)
 
 	model := ui.Model{
 		Playlist:              playlists,
 		UserTokenInfo:         token,
-		SelectedPlayListItems: list.New([]list.Item{}, ui.CustomDelegate{}, 10, 20),
+		SelectedPlayListItems: playlistItems,
 		FocusedOn:             ui.SideView,
 	}
 
@@ -77,7 +88,7 @@ func main() {
 
 	_, err = Program.Run()
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		slog.Error(err.Error())
+		log.Fatal(err)
 	}
 }

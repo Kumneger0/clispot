@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -58,7 +59,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.FocusedOn == MainView {
 		model, cmd := m.SelectedPlayListItems.Update(msg)
-		m.Playlist = model
+		m.SelectedPlayListItems = model
 		cmds = append(cmds, cmd)
 	}
 
@@ -72,10 +73,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "tab":
 		if m.FocusedOn == MainView {
 			m.FocusedOn = SideView
-		}
-		if m.FocusedOn == SideView {
+		} else {
 			m.FocusedOn = MainView
 		}
+		return m, nil
 	case "enter":
 		return m.handleEnterKey()
 	}
@@ -89,7 +90,8 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		// find the song on youtube and start streaming
 		selectedMusic, ok := m.SelectedPlayListItems.SelectedItem().(types.PlaylistTrackObject)
 		if !ok {
-			//TODO: show some kind of error message
+			//TODO: find a way to show error message for the user
+			slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
 			return m, nil
 		}
 		trackName := selectedMusic.Track.Name
@@ -102,12 +104,16 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		playerProcess := m.PlayerProcess
 
 		if playerProcess != nil {
-			_ = playerProcess.Kill()
+			err := playerProcess.Kill()
+			if err != nil {
+				slog.Error(err.Error())
+			}
 			//TODO:Show error message
 		}
 
 		process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames)
 		if err != nil {
+			slog.Error(err.Error())
 			//TODO: implement some kind of way to show the error message
 			return m, nil
 		}
@@ -118,12 +124,13 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 	}
 	selectedItem, ok := m.Playlist.SelectedItem().(types.SpotifyPlaylist)
 	if !ok {
+		slog.Error("failed to cast Playlist  to SpotifyPlaylist")
 		return m, nil
 	}
 	playlistItems, err := spotify.GetPlaylistItems(selectedItem.ID, m.UserTokenInfo.AccessToken)
 
 	if err != nil {
-		//TODO:  log error using slog
+		slog.Error(err.Error())
 		return m, nil
 	}
 
@@ -153,10 +160,11 @@ func (m Model) View() string {
 	m.SelectedPlayListItems.SetShowPagination(false)
 	m.SelectedPlayListItems.SetShowHelp(false)
 	m.SelectedPlayListItems.SetShowStatusBar(false)
-	playlistView := m.Playlist.View()
-	selectedPlaylistMusicView := m.SelectedPlayListItems.View()
 
-	combinedView := lipgloss.JoinHorizontal(lipgloss.Top, playlistView, selectedPlaylistMusicView)
+	playlistView := getSideBarStyles(dimensions.sidebarWidth, dimensions.contentHeight, &m).Render(m.Playlist.View())
+	mainView := getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(m.SelectedPlayListItems.View())
+
+	combinedView := lipgloss.JoinHorizontal(lipgloss.Top, playlistView, mainView)
 	return combinedView
 }
 
@@ -176,6 +184,7 @@ func (d CustomDelegate) Spacing() int {
 func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 	return nil
 }
+
 func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	var title string
 	switch item := item.(type) {

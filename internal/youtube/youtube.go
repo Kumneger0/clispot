@@ -19,7 +19,6 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string) (
 		"--downloader", "aria2c",
 		"--downloader-args", "aria2c:-x 16 -s 16 -k 1M --file-allocation=none",
 		"--no-part",
-		"--no-cache-dir",
 		"-o", "-",
 	)
 

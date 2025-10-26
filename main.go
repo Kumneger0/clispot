@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
-	"github.com/kumneger0/clispot/internal/logger"
+	logSetup "github.com/kumneger0/clispot/internal/logger"
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
@@ -28,7 +29,7 @@ type Token struct {
 }
 
 func main() {
-	logger := logger.Init()
+	logger := logSetup.Init()
 	defer logger.Close()
 
 	slog.Info("starting the application")
@@ -77,14 +78,23 @@ func main() {
 	playlists := list.New(items, ui.CustomDelegate{}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{}, 10, 20)
 
+	input := textinput.New()
+	input.Placeholder = "Search tracks, artists, albums..."
+	input.Prompt = "> "
+	input.CharLimit = 256
+
+	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{}, 10, 20)
+
 	model := ui.Model{
 		Playlist:              playlists,
 		UserTokenInfo:         token,
 		SelectedPlayListItems: playlistItems,
 		FocusedOn:             ui.SideView,
+		Search:                input,
+		MusicQueueList:        musicQueueList,
 	}
 
-	Program := tea.NewProgram(model, tea.WithAltScreen())
+	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	_, err = Program.Run()
 	if err != nil {

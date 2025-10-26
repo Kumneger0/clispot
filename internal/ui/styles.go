@@ -12,24 +12,14 @@ var (
 			Foreground(lipgloss.Color("#000000")).
 			Background(lipgloss.Color("#7D56F4")).
 			Bold(true)
-
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("205")).Padding(0, 1)
-
-	timestampStyle = lipgloss.NewStyle().Height(1).
-			Foreground(lipgloss.Color("#999999")).
-			Italic(true).
-			MarginRight(1).PaddingLeft(4)
-
-	messageStyle = lipgloss.NewStyle().
-			PaddingTop(1).
-			PaddingBottom(1).
-			Foreground(lipgloss.Color("#FFFFFF"))
-
-	replyMessageStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#AAAAAA"))
 )
+
+func getBorderColor(isFocused bool) lipgloss.Color {
+	if isFocused {
+		return lipgloss.Color("#7D56F4")
+	}
+	return lipgloss.Color("#44475A")
+}
 
 func getItemBorder(isSelected bool) lipgloss.Border {
 	if isSelected {
@@ -42,23 +32,39 @@ func getSideBarStyles(sidebarWidth int, contentHeight int, m *Model) lipgloss.St
 	sideBarStyle := lipgloss.NewStyle().
 		Width(sidebarWidth).
 		Height(contentHeight).
-		Padding(1).
+		Padding(0).
 		Border(getItemBorder(m.FocusedOn == SideView)).
+		BorderForeground(getBorderColor(m.FocusedOn == SideView)).
 		MaxHeight(contentHeight)
 	return sideBarStyle
-}
-
-func getInputStyle(m *Model, inputHeight int) lipgloss.Style {
-	inputStyle := lipgloss.NewStyle().Width(m.Width+2).Height(inputHeight).Padding(0, 1).Border(getItemBorder(m.FocusedOn == "input"))
-	return inputStyle
 }
 
 func getMainStyle(mainWidth int, contentHeight int, m *Model) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(mainWidth).
 		Height(contentHeight).
-		Padding(1).
+		Padding(0).
 		Border(getItemBorder(m.FocusedOn == MainView)).
+		BorderForeground(getBorderColor(m.FocusedOn == MainView)).
 		MaxHeight(contentHeight).
 		MaxWidth(mainWidth)
+}
+
+func getPlayerStyles(m *Model, inputHeight int) lipgloss.Style {
+	inputStyle := lipgloss.NewStyle().Width(m.Width).
+		Height(inputHeight).
+		Padding(0).
+		Border(getItemBorder(m.FocusedOn == Player)).
+		BorderForeground(getBorderColor(m.FocusedOn == Player))
+	return inputStyle
+}
+
+func getQueueListStyle(m *Model, height, width int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Width(width).
+		Height(height).
+		Padding(0).
+		Border(getItemBorder(m.FocusedOn == QueueList)).
+		BorderForeground(getBorderColor(m.FocusedOn == QueueList)).
+		MaxHeight(height)
 }

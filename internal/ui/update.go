@@ -2,6 +2,7 @@ package ui
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,8 +18,7 @@ I've been on my own for long enough
 Maybe you can show me how to love, maybe
 I'm goin' through withdrawals
 You don't even have to do too much
-You can turn me on with just a touch, baby
-I look around and
+You can turn me
 Sin City's cold and empty (oh)
 No one's around to judge me (oh)
 I can't see clearly when you're gone
@@ -50,6 +50,33 @@ No, I can't sleep until I feel your touch`
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.UpdatePlayedSeconds:
+		m.PlayedSeconds = msg.CurrentSeconds
+		cmd := func() tea.Cmd {
+			return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+				if m.PlayerProcess != nil {
+					currentSeconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
+					return types.UpdatePlayedSeconds{
+						CurrentSeconds: currentSeconds,
+					}
+				}
+				return nil
+			})
+		}
+		var totalDurationInSeconds int
+
+		if m.SelectedTrack != nil {
+			totalDurationInSeconds = m.SelectedTrack.Track.DurationMs / 1000
+		}
+		diff := float64(totalDurationInSeconds) - (m.PlayedSeconds)
+
+		if diff < 2 {
+			model, cmd := m.handleMusicChange(true)
+			m = model
+			cmds = append(cmds, cmd)
+		}
+
+		cmds = append(cmds, cmd())
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width - 4
 		m.Height = msg.Height - 4
@@ -59,8 +86,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LyricsView.Height = dims.contentHeight
 
 		m.LyricsView.SetContent(testLyrics)
-
 		return m, nil
+	case types.UpdatePlaylistMsg:
+		if msg.Playlist != nil {
+			var playListItemSongs []list.Item
+			for _, item := range msg.Playlist {
+				playListItemSongs = append(playListItemSongs, *item)
+			}
+			m.SelectedTrack = nil
+			cmd := m.SelectedPlayListItems.SetItems(playListItemSongs)
+			cmds = append(cmds, cmd)
+		}
+		if msg.Err != nil {
+			//TODO: find nice way to show error messages
+		}
 	case tea.KeyMsg:
 		model, cmd := m.handleKeyPress(msg)
 		m = model
@@ -76,9 +115,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
+	case " ":
+		return m.handleMusicPausePlay()
+	case "b":
+		return m.handleMusicChange(false)
+	case "n":
+		return m.handleMusicChange(true)
 	case "q", "ctrl+c":
 		if m.PlayerProcess != nil {
-			err := m.PlayerProcess.Kill()
+			err := m.PlayerProcess.Close()
 			if err != nil {
 				slog.Error(err.Error())
 			}
@@ -89,67 +134,128 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "enter":
 		return m.handleEnterKey()
 	}
-
 	return m, nil
 }
 
+func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
+	if m.FocusedOn != Player || len(m.MusicQueueList.Items()) <= 0 {
+		return m, nil
+	}
+	currentlySelectedMusicIndex := m.MusicQueueList.GlobalIndex()
+	if currentlySelectedMusicIndex == 0 && !isForward {
+		return m, nil
+	}
+
+	var nextTrackIndex int
+	if isForward && len(m.MusicQueueList.Items()) == (currentlySelectedMusicIndex+1) {
+		nextTrackIndex = 0
+	} else if isForward {
+		nextTrackIndex = currentlySelectedMusicIndex + 1
+	} else {
+		nextTrackIndex = currentlySelectedMusicIndex - 1
+	}
+
+	musicToPlay, ok := m.MusicQueueList.Items()[nextTrackIndex].(types.PlaylistTrackObject)
+	if !ok {
+		slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
+		return m, nil
+	}
+	m.MusicQueueList.Select(nextTrackIndex)
+	return m.PlaySelectedMusic(musicToPlay)
+}
+
+func (m Model) handleMusicPausePlay() (Model, tea.Cmd) {
+	if m.FocusedOn != Player || m.PlayerProcess == nil {
+		return m, nil
+	}
+	if m.PlayerProcess.OtoPlayer.IsPlaying() {
+		m.PlayerProcess.OtoPlayer.Pause()
+		return m, nil
+	}
+	m.PlayerProcess.OtoPlayer.Play()
+	return m, nil
+}
+
+func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
+	if focusedOn == MainView {
+		return &m.SelectedPlayListItems
+	}
+	if focusedOn == QueueList {
+		return &m.MusicQueueList
+	}
+
+	return nil
+}
+
 func (m Model) handleEnterKey() (Model, tea.Cmd) {
-	if m.FocusedOn == MainView {
-		selectedMusic, ok := m.SelectedPlayListItems.SelectedItem().(types.PlaylistTrackObject)
+	if m.FocusedOn == MainView || m.FocusedOn == QueueList {
+		listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)
+		selectedMusic, ok := listItemToChooseMusicFrom.SelectedItem().(types.PlaylistTrackObject)
 		if !ok {
 			//TODO: find a way to show error message for the user
 			slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
 			return m, nil
 		}
 
-		trackName := selectedMusic.Track.Name
-		albumName := selectedMusic.Track.Album.Name
-		var artistNames []string
-		for _, artist := range selectedMusic.Track.Artists {
-			artistNames = append(artistNames, artist.Name)
-		}
-
-		playerProcess := m.PlayerProcess
-
-		if playerProcess != nil {
-			err := playerProcess.Kill()
-			if err != nil {
-				slog.Error(err.Error())
-			}
-			//TODO:Show error message
-		}
-
-		process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames)
-		if err != nil {
-			slog.Error(err.Error())
-			//TODO: implement some kind of way to show the error message
-			return m, nil
-		}
-
-		m.PlayerProcess = process
-		m.SelectedTrack = &selectedMusic
-		return m, nil
+		m.MusicQueueList.SetItems(m.SelectedPlayListItems.Items())
+		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
+		return m.PlaySelectedMusic(selectedMusic)
 	}
 	selectedItem, ok := m.Playlist.SelectedItem().(types.SpotifyPlaylist)
 	if !ok {
 		slog.Error("failed to cast Playlist to SpotifyPlaylist")
 		return m, nil
 	}
-	playlistItems, err := spotify.GetPlaylistItems(selectedItem.ID, m.UserTokenInfo.AccessToken)
 
+	cmd := func() tea.Msg {
+		playlistItems, err := spotify.GetPlaylistItems(selectedItem.ID, m.UserTokenInfo.AccessToken)
+		return types.UpdatePlaylistMsg{
+			Playlist: playlistItems.Items,
+			Err:      err,
+		}
+	}
+	return m, cmd
+}
+
+func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model, tea.Cmd) {
+	trackName := selectedMusic.Track.Name
+	albumName := selectedMusic.Track.Album.Name
+	var artistNames []string
+	for _, artist := range selectedMusic.Track.Artists {
+		artistNames = append(artistNames, artist.Name)
+	}
+
+	playerProcess := m.PlayerProcess
+
+	if playerProcess != nil {
+		err := playerProcess.Close()
+		if err != nil {
+			slog.Error(err.Error())
+		}
+		//TODO:Show error message
+	}
+	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, m.PlayerProcess == nil)
 	if err != nil {
 		slog.Error(err.Error())
+		//TODO: implement some kind of way to show the error message
 		return m, nil
 	}
 
-	var playListItemSongs []list.Item
-
-	for _, item := range playlistItems.Items {
-		playListItemSongs = append(playListItemSongs, item)
+	cmd := func() tea.Cmd {
+		return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+			if process != nil {
+				currentSeconds := process.ByteCounterReader.CurrentSeconds()
+				return types.UpdatePlayedSeconds{
+					CurrentSeconds: currentSeconds,
+				}
+			}
+			return nil
+		})
 	}
 
-	cmd := tea.Batch(m.SelectedPlayListItems.SetItems(playListItemSongs), m.MusicQueueList.SetItems(playListItemSongs))
-	return m, cmd
+	m.PlayerProcess = process
+	m.SelectedTrack = &selectedMusic
+	return m, cmd()
 }
 
 func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {

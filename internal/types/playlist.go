@@ -65,13 +65,13 @@ type SpotifyImage struct {
 }
 
 type PlaylistItemsResponse struct {
-	Href     string                `json:"href"`
-	Limit    int                   `json:"limit"`
-	Next     string                `json:"next"`
-	Offset   int                   `json:"offset"`
-	Previous string                `json:"previous"`
-	Total    int                   `json:"total"`
-	Items    []PlaylistTrackObject `json:"items"`
+	Href     string                 `json:"href"`
+	Limit    int                    `json:"limit"`
+	Next     string                 `json:"next"`
+	Offset   int                    `json:"offset"`
+	Previous string                 `json:"previous"`
+	Total    int                    `json:"total"`
+	Items    []*PlaylistTrackObject `json:"items"`
 }
 
 type PlaylistTrackObject struct {

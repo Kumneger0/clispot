@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/kumneger0/clispot/internal/types"
+	"github.com/kumneger0/clispot/internal/youtube"
 )
 
 type FocusedOn string
@@ -31,8 +32,9 @@ type Model struct {
 	SelectedPlayListItems                   list.Model
 	LyricsView                              viewport.Model
 	FocusedOn                               FocusedOn
-	PlayerProcess                           *os.Process
+	PlayerProcess                           *youtube.Player
 	SelectedTrack, NextTrack, PreviousTrack *types.PlaylistTrackObject
+	PlayedSeconds                           float64
 	Height                                  int
 	Width                                   int
 	Search                                  textinput.Model
@@ -47,9 +49,9 @@ func (m Model) View() string {
 	m.Playlist.Title = "Playlist"
 	m.SelectedPlayListItems.Title = "Tracks"
 	m.MusicQueueList.Title = "Queue"
-	removeListDefaults(m.Playlist)
-	removeListDefaults(m.SelectedPlayListItems)
-	removeListDefaults(m.MusicQueueList)
+	removeListDefaults(&m.Playlist)
+	removeListDefaults(&m.SelectedPlayListItems)
+	removeListDefaults(&m.MusicQueueList)
 
 	dimensions := calculateLayoutDimensions(&m)
 	updateListDimensions(&m, dimensions)
@@ -58,7 +60,13 @@ func (m Model) View() string {
 
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
 
-	mainView := getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
+	var mainView string
+
+	if m.SelectedTrack != nil {
+		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
+	} else {
+		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
+	}
 
 	var playingView string
 
@@ -72,7 +80,8 @@ func (m Model) View() string {
 		}
 		artistName := strings.Join(artistNames, ",")
 		stringBuilder.WriteString(artistName)
-		currentPosition := time.Second * 30
+		playedSeconds := int(m.PlayedSeconds)
+		currentPosition := time.Second * time.Duration(playedSeconds)
 		total := time.Duration(m.SelectedTrack.Track.DurationMs) * time.Millisecond
 
 		playingView = renderNowPlaying(m.SelectedTrack.Track.Name, artistName, currentPosition, total)
@@ -100,7 +109,6 @@ func formatTime(d time.Duration) string {
 	totalSeconds := int(d.Seconds())
 	minutes := totalSeconds / 60
 	seconds := totalSeconds % 60
-
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
@@ -150,9 +158,11 @@ func getTerminalWidth() int {
 	return width
 }
 
-func removeListDefaults(listToRemoveDefaults list.Model) {
-	listToRemoveDefaults.SetShowFilter(false)
-	listToRemoveDefaults.SetShowPagination(false)
-	listToRemoveDefaults.SetShowHelp(false)
-	listToRemoveDefaults.SetShowStatusBar(false)
+func removeListDefaults(listToRemoveDefaults *list.Model) {
+	if listToRemoveDefaults != nil {
+		listToRemoveDefaults.SetShowFilter(false)
+		listToRemoveDefaults.SetShowPagination(false)
+		listToRemoveDefaults.SetShowHelp(false)
+		listToRemoveDefaults.SetShowStatusBar(false)
+	}
 }

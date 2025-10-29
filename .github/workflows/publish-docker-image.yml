@@ -1,0 +1,31 @@
+name: Publish clispot Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build Docker image and push to Docker Hub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/clispot:latest
+          build-args: |
+            SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}
+            SPOTIFY_Client_SECRET=${{ secrets.SPOTIFY_Client_SECRET }}

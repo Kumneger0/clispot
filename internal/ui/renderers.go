@@ -79,14 +79,25 @@ func renderSearchBar(m *Model, width int) string {
 
 func renderNowPlaying(trackName, artistName string, currentPosition, TotalDuration time.Duration) string {
 	barWidth := 40
-	progress := int(math.Abs(float64(currentPosition.Abs()) / float64(TotalDuration.Abs()) * float64(barWidth)))
+	var progressFloat float64
+	if TotalDuration == 0 {
+		progressFloat = 1.0
+	} else {
+		progressFloat = float64(currentPosition.Abs()) / float64(TotalDuration.Abs()) * float64(barWidth)
+	}
+
+	progress := max(min(int(math.Max(progressFloat, 1)), barWidth), 0)
+
+	left := strings.Repeat("▰", progress)
+	rightCount := max(barWidth-progress, 0)
+	right := strings.Repeat("▱", rightCount)
 
 	return fmt.Sprintf("▶ %s — %s %s / %s\n%s\n",
 		trackName,
 		artistName,
 		formatTime(currentPosition),
 		formatTime(TotalDuration),
-		strings.Repeat("▰", progress)+strings.Repeat("▱", barWidth-progress),
+		left+right,
 	)
 }
 

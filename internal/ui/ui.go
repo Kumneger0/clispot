@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
+	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
 )
@@ -50,7 +51,17 @@ type Instance struct {
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	var cmd tea.Cmd
+	if m.UserTokenInfo != nil {
+		cmd = func() tea.Msg {
+			followedArtist, err := spotify.GetFollowedArtist(m.UserTokenInfo.AccessToken)
+			if err != nil {
+				return nil
+			}
+			return followedArtist
+		}
+	}
+	return cmd
 }
 
 func (m Model) View() string {
@@ -70,11 +81,12 @@ func (m Model) View() string {
 
 	var mainView string
 
-	if m.SelectedTrack != nil {
-		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
-	} else {
-		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
-	}
+	// if m.SelectedTrack != nil {
+	// 	mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
+	// } else {
+	mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).
+		Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
+	// }
 
 	var playingView string
 
@@ -90,7 +102,7 @@ func (m Model) View() string {
 		stringBuilder.WriteString(artistName)
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
-		total := time.Duration(m.SelectedTrack.Track.DurationMs) * time.Millisecond
+		total := time.Duration(m.SelectedTrack.Track.DurationMS) * time.Millisecond
 
 		playingView = renderNowPlaying(m.SelectedTrack.Track.Name, artistName, currentPosition, total)
 	}
@@ -98,7 +110,7 @@ func (m Model) View() string {
 	controls := renderPlayerControls()
 	playingCombined := strings.TrimSpace(playingView) + "\n\n" + controls
 
-	playing := getPlayerStyles(&m, dimensions.inputHeight).Foreground(lipgloss.Color("21")).Render(playingCombined)
+	playing := getPlayerStyles(&m, dimensions).Foreground(lipgloss.Color("21")).Render(playingCombined)
 
 	queueList := getQueueListStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth).Render(m.MusicQueueList.View())
 
@@ -128,13 +140,12 @@ type layoutDimensions struct {
 }
 
 func calculateLayoutDimensions(m *Model) layoutDimensions {
-	sidebarWidth := m.Width * 15 / 100
+	sidebarWidth := m.Width * 20 / 100
 	inputHeight := min(max(m.Height*6/100, 3), 8)
 
-	mainCenterArea := (m.Width - (sidebarWidth * 2)) * 95 / 100
+	mainCenterArea := (m.Width - (sidebarWidth * 2))
 
 	//main area is basically total width minus left sidebar minus right sidebar and
-
 	return layoutDimensions{
 		sidebarWidth:  sidebarWidth,
 		mainWidth:     mainCenterArea,

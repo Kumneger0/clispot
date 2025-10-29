@@ -50,9 +50,15 @@ func getMainStyle(mainWidth int, contentHeight int, m *Model) lipgloss.Style {
 		MaxWidth(mainWidth)
 }
 
-func getPlayerStyles(m *Model, inputHeight int) lipgloss.Style {
+func getPlayerStyles(m *Model, dims layoutDimensions) lipgloss.Style {
+	//we have two sidebars one for users library and one for music queue and have a main area which the center one
+	// so the player section should take full available width so we need to caluculate this way
+	// i added 2 b/c there was a tiny space remaining at the right side, adding 2 fixes that issue
+	width := dims.mainWidth + (dims.sidebarWidth*2 + 2)
+
 	inputStyle := lipgloss.NewStyle().Width(m.Width).
-		Height(inputHeight).
+		Height(dims.inputHeight).
+		Width(width).
 		Padding(0).
 		Border(getItemBorder(m.FocusedOn == Player)).
 		BorderForeground(getBorderColor(m.FocusedOn == Player))

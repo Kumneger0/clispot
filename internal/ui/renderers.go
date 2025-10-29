@@ -23,7 +23,7 @@ func (d CustomDelegate) Height() int {
 }
 
 func (d CustomDelegate) Spacing() int {
-	return 0
+	return 1
 }
 
 func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
@@ -33,17 +33,9 @@ func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	var title string
 	switch item := item.(type) {
-	case types.SpotifyPlaylist, types.PlaylistTrackObject:
+	case types.SpotifyPlaylist, types.PlaylistTrackObject, types.Artist:
 		title = item.FilterValue()
-		var width int
-		if d.Model != nil {
-			dims := calculateLayoutDimensions(d.Model)
-			width = max(dims.sidebarWidth-4, 10)
-		} else {
-			width = getTerminalWidth() / 4
-		}
-
-		str := lipgloss.NewStyle().Width(width).Render(title)
+		str := lipgloss.NewStyle().Render(title)
 		if index == m.Index() {
 			fmt.Fprint(w, selectedStyle.Render(" "+str+" "))
 		} else {
@@ -85,6 +77,12 @@ func renderNowPlaying(trackName, artistName string, currentPosition, TotalDurati
 	} else {
 		progressFloat = float64(currentPosition.Abs()) / float64(TotalDuration.Abs()) * float64(barWidth)
 	}
+
+	// 40 bar width
+	// 1.0 // currentPosition
+	// 4.0  // totalDuration
+	// 1.0 / 4.0 => 0.25
+	// 0.25 * 40 => 10
 
 	progress := max(min(int(math.Max(progressFloat, 1)), barWidth), 0)
 

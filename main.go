@@ -117,7 +117,6 @@ func main() {
 	}
 
 	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-		fmt.Println("we are here")
 		token, err = spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
 			slog.Error(err.Error())

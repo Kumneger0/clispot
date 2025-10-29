@@ -24,7 +24,7 @@ import (
 
 var (
 	authBaseURL = "https://accounts.spotify.com/authorize"
-	scope       = "user-read-private user-read-email playlist-read-private user-library-read"
+	scope       = "user-read-private user-read-email playlist-read-private user-library-read user-top-read user-follow-read"
 	tokenRL     = "https://accounts.spotify.com/api/token"
 	redirectURL = "http://127.0.0.1:9292/callback"
 )

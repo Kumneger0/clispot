@@ -72,3 +72,7 @@ type SpotifyTrack struct {
 	URI         string `json:"uri"`
 	IsLocal     bool   `json:"is_local"`
 }
+
+type ArtistTopTracks struct {
+	Tracks []Track `json:"tracks"`
+}

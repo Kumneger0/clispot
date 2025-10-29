@@ -9,6 +9,13 @@ import (
 	"github.com/kumneger0/clispot/internal/types"
 )
 
+type UserTopItem string
+
+const (
+	artist UserTopItem = "artists"
+	track  UserTopItem = "tracks"
+)
+
 const (
 	//playlist base url
 	playlistBase = "https://api.spotify.com/v1/me/playlists/"
@@ -17,7 +24,10 @@ const (
 	//tracks base url
 	tracksBase = "https://api.spotify.com/v1/tracks/"
 	//user profile base url
-	userProfileBase = "https://api.spotify.com/v1/me/"
+	userProfileBase     = "https://api.spotify.com/v1/me/"
+	artistsURL          = "https://api.spotify.com/v1/artists/"
+	followedArtistURL   = "https://api.spotify.com/v1/me/following?type=artist"
+	userTopItemsBaseURL = "https://api.spotify.com/v1/me/top/"
 )
 
 type APIURLS interface {
@@ -26,6 +36,10 @@ type APIURLS interface {
 	GetTrackBaseURL() string
 	GetUserProfileBaseURL() string
 	GetPlaylistItems(playlistID string) string
+	GetArtistsURL() string
+	GetFollowedArtistURL() string
+	GetUserTopItems(itemType UserTopItem) string
+	GetArtistsTopTrackURL(id string) string
 }
 
 type apiURL struct{}
@@ -41,10 +55,23 @@ func (a apiURL) GetFeaturedPlayListURL() string {
 func (a apiURL) GetTrackBaseURL() string {
 	return tracksBase
 }
+
 func (a apiURL) GetUserProfileBaseURL() string {
 	return userProfileBase
 }
 
+func (a apiURL) GetArtistsURL() string {
+	return artistsURL
+}
+func (a apiURL) GetUserTopItems(itemType UserTopItem) string {
+	return userTopItemsBaseURL + string(itemType)
+}
+func (a apiURL) GetFollowedArtistURL() string {
+	return followedArtistURL
+}
+func (a apiURL) GetArtistsTopTrackURL(id string) string {
+	return "https://api.spotify.com/v1/artists/" + id + "/top-tracks"
+}
 func (a apiURL) GetPlaylistItems(playlistID string) string {
 	base := "https://api.spotify.com/v1/playlists/"
 	return base + playlistID + "/tracks"
@@ -65,6 +92,60 @@ func makeRequest(method string, url string, authorizationHeader string) (*http.R
 	}
 	req.Header.Add("Authorization", authorizationHeader)
 	return http.DefaultClient.Do(req)
+}
+
+func GetArtistsTopTrackURL(accessToken string, artistId string) (*types.ArtistTopTracks, error) {
+	authorizationHeader := "Bearer " + accessToken
+	resp, err := makeRequest("GET", APIURL.GetArtistsTopTrackURL(artistId), authorizationHeader)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	var artistTopTracks *types.ArtistTopTracks
+	if err := json.NewDecoder(resp.Body).Decode(&artistTopTracks); err != nil {
+		return nil, err
+	}
+	return artistTopTracks, nil
+}
+
+func GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
+	authorizationHeader := "Bearer " + accessToken
+	resp, err := makeRequest("GET", APIURL.GetUserTopItems(track), authorizationHeader)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	var userFollowedArtist *types.UserTopItemsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&userFollowedArtist); err != nil {
+		return nil, err
+	}
+	return userFollowedArtist, nil
+}
+
+func GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error) {
+	authorizationHeader := "Bearer " + accessToken
+	resp, err := makeRequest("GET", APIURL.GetFollowedArtistURL(), authorizationHeader)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	var userFollowedArtist *types.UserFollowedArtistResponse
+	if err := json.NewDecoder(resp.Body).Decode(&userFollowedArtist); err != nil {
+		return nil, err
+	}
+	return userFollowedArtist, nil
 }
 
 func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) {

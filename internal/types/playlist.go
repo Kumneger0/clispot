@@ -35,10 +35,10 @@ type SpotifyPlaylist struct {
 }
 
 func (spotifyPlaylist SpotifyPlaylist) FilterValue() string {
-	return spotifyPlaylist.Name
+	return spotifyPlaylist.Name + " (playlist)"
 }
 func (spotifyPlaylist SpotifyPlaylist) Title() string {
-	return spotifyPlaylist.Name
+	return spotifyPlaylist.Name + " (playlist)"
 }
 
 type PlaylistPage struct {
@@ -75,10 +75,10 @@ type PlaylistItemsResponse struct {
 }
 
 type PlaylistTrackObject struct {
-	AddedAt string      `json:"added_at"`
-	AddedBy SpotifyUser `json:"added_by"`
-	IsLocal bool        `json:"is_local"`
-	Track   TrackObject `json:"track"`
+	AddedAt string       `json:"added_at"`
+	AddedBy *SpotifyUser `json:"added_by"`
+	IsLocal bool         `json:"is_local"`
+	Track   Track        `json:"track"`
 }
 
 func (playlist PlaylistTrackObject) FilterValue() string {
@@ -87,67 +87,4 @@ func (playlist PlaylistTrackObject) FilterValue() string {
 
 func (playlist PlaylistTrackObject) Title() string {
 	return playlist.Track.Name
-}
-
-type TrackObject struct {
-	Album            AlbumObject    `json:"album"`
-	Artists          []ArtistObject `json:"artists"`
-	AvailableMarkets []string       `json:"available_markets"`
-	DiscNumber       int            `json:"disc_number"`
-	DurationMs       int            `json:"duration_ms"`
-	Explicit         bool           `json:"explicit"`
-	ExternalIDs      struct {
-		ISRC string `json:"isrc"`
-		EAN  string `json:"ean"`
-		UPC  string `json:"upc"`
-	} `json:"external_ids"`
-	ExternalURLs struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Href         string         `json:"href"`
-	ID           string         `json:"id"`
-	IsPlayable   bool           `json:"is_playable"`
-	LinkedFrom   map[string]any `json:"linked_from"` // sometimes empty, keep flexible
-	Restrictions struct {
-		Reason string `json:"reason"`
-	} `json:"restrictions"`
-	Name        string `json:"name"`
-	Popularity  int    `json:"popularity"`
-	PreviewURL  string `json:"preview_url"`
-	TrackNumber int    `json:"track_number"`
-	Type        string `json:"type"`
-	URI         string `json:"uri"`
-	IsLocal     bool   `json:"is_local"`
-}
-
-type AlbumObject struct {
-	AlbumType        string   `json:"album_type"`
-	TotalTracks      int      `json:"total_tracks"`
-	AvailableMarkets []string `json:"available_markets"`
-	ExternalURLs     struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Href                 string         `json:"href"`
-	ID                   string         `json:"id"`
-	Images               []SpotifyImage `json:"images"`
-	Name                 string         `json:"name"`
-	ReleaseDate          string         `json:"release_date"`
-	ReleaseDatePrecision string         `json:"release_date_precision"`
-	Restrictions         struct {
-		Reason string `json:"reason"`
-	} `json:"restrictions"`
-	Type    string         `json:"type"`
-	URI     string         `json:"uri"`
-	Artists []ArtistObject `json:"artists"`
-}
-
-type ArtistObject struct {
-	ExternalURLs struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Href string `json:"href"`
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Type string `json:"type"`
-	URI  string `json:"uri"`
 }

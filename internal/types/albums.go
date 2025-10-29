@@ -50,6 +50,7 @@ type AlbumTracks struct {
 
 type Track struct {
 	Artists          []Artist     `json:"artists"`
+	Album            Album        `json:"album"`
 	AvailableMarkets []string     `json:"available_markets"`
 	DiscNumber       int          `json:"disc_number"`
 	DurationMS       int          `json:"duration_ms"`
@@ -66,19 +67,6 @@ type Track struct {
 	Type             string       `json:"type"`
 	URI              string       `json:"uri"`
 	IsLocal          bool         `json:"is_local"`
-}
-
-type Artist struct {
-	ExternalURLs ExternalURLs `json:"external_urls"`
-	Href         string       `json:"href"`
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	Type         string       `json:"type"`
-	URI          string       `json:"uri"`
-}
-
-type ExternalURLs struct {
-	Spotify string `json:"spotify"`
 }
 
 type Restriction struct {

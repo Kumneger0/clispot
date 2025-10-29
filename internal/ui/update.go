@@ -35,6 +35,13 @@ func getMusicMetadata(music MusicMetadata) map[string]interface{} {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case *types.UserFollowedArtistResponse:
+		playlist := m.Playlist.Items()
+		for _, artist := range msg.Artists.Items {
+			playlist = append(playlist, artist)
+		}
+		cmd := m.Playlist.SetItems(playlist)
+		cmds = append(cmds, cmd)
 	case types.DBusMessage:
 		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
 		m = model
@@ -55,7 +62,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var totalDurationInSeconds int
 
 		if m.SelectedTrack != nil {
-			totalDurationInSeconds = m.SelectedTrack.Track.DurationMs / 1000
+			totalDurationInSeconds = m.SelectedTrack.Track.DurationMS / 1000
 		}
 		diff := float64(totalDurationInSeconds) - (m.PlayedSeconds)
 
@@ -229,20 +236,43 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic)
 	}
-	selectedItem, ok := m.Playlist.SelectedItem().(types.SpotifyPlaylist)
-	if !ok {
-		slog.Error("failed to cast Playlist to SpotifyPlaylist")
-		return m, nil
-	}
-
-	cmd := func() tea.Msg {
-		playlistItems, err := spotify.GetPlaylistItems(selectedItem.ID, m.UserTokenInfo.AccessToken)
-		return types.UpdatePlaylistMsg{
-			Playlist: playlistItems.Items,
-			Err:      err,
+	if m.FocusedOn == SideView {
+		if m.UserTokenInfo == nil {
+			slog.Error("failed to get user access token")
+			return m, nil
 		}
+		switch selectedItem := m.Playlist.SelectedItem().(type) {
+		case types.SpotifyPlaylist:
+			cmd := func() tea.Msg {
+				playlistItems, err := spotify.GetPlaylistItems(selectedItem.ID, m.UserTokenInfo.AccessToken)
+				return types.UpdatePlaylistMsg{
+					Playlist: playlistItems.Items,
+					Err:      err,
+				}
+			}
+			return m, cmd
+		case types.Artist:
+			cmd := func() tea.Msg {
+				artistSongs, err := spotify.GetArtistsTopTrackURL(m.UserTokenInfo.AccessToken, selectedItem.ID)
+				var tracks []*types.PlaylistTrackObject
+				for _, track := range artistSongs.Tracks {
+					tracks = append(tracks, &types.PlaylistTrackObject{
+						AddedAt: "",
+						AddedBy: nil,
+						IsLocal: false,
+						Track:   track,
+					})
+				}
+				return types.UpdatePlaylistMsg{
+					Playlist: tracks,
+					Err:      err,
+				}
+			}
+			return m, cmd
+		}
+
 	}
-	return m, cmd
+	return m, nil
 }
 
 func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model, tea.Cmd) {
@@ -283,7 +313,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),
-		length:     int64(selectedMusic.Track.DurationMs),
+		length:     int64(selectedMusic.Track.DurationMS),
 		title:      selectedMusic.Track.Name,
 	})
 

@@ -1,4 +1,4 @@
-package types
+package types // nolint:revive
 
 type UserFollowedArtistResponse struct {
 	Artists Artists `json:"artists"`

@@ -52,7 +52,7 @@ func getMainStyle(mainWidth int, contentHeight int, m *Model) lipgloss.Style {
 
 func getPlayerStyles(m *Model, dims layoutDimensions) lipgloss.Style {
 	//we have two sidebars one for users library and one for music queue and have a main area which the center one
-	// so the player section should take full available width so we need to caluculate this way
+	// so the player section should take full available width so we need to calculate this way
 	// i added 2 b/c there was a tiny space remaining at the right side, adding 2 fixes that issue
 	width := dims.mainWidth + (dims.sidebarWidth*2 + 2)
 

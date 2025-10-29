@@ -94,9 +94,9 @@ func makeRequest(method string, url string, authorizationHeader string) (*http.R
 	return http.DefaultClient.Do(req)
 }
 
-func GetArtistsTopTrackURL(accessToken string, artistId string) (*types.ArtistTopTracks, error) {
+func GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistTopTracks, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetArtistsTopTrackURL(artistId), authorizationHeader)
+	resp, err := makeRequest("GET", APIURL.GetArtistsTopTrackURL(artistID), authorizationHeader)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err

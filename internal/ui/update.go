@@ -218,7 +218,6 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 	if focusedOn == QueueList {
 		return &m.MusicQueueList
 	}
-
 	return nil
 }
 
@@ -231,7 +230,6 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
 			return m, nil
 		}
-
 		m.MusicQueueList.SetItems(m.SelectedPlayListItems.Items())
 		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic)
@@ -270,7 +268,6 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			}
 			return m, cmd
 		}
-
 	}
 	return m, nil
 }

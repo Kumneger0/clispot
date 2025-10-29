@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
@@ -78,7 +79,7 @@ func renderSearchBar(m *Model, width int) string {
 
 func renderNowPlaying(trackName, artistName string, currentPosition, TotalDuration time.Duration) string {
 	barWidth := 40
-	progress := int(float64(currentPosition) / float64(TotalDuration.Abs()) * float64(barWidth))
+	progress := int(math.Abs(float64(currentPosition.Abs()) / float64(TotalDuration.Abs()) * float64(barWidth)))
 
 	return fmt.Sprintf("▶ %s — %s %s / %s\n%s\n",
 		trackName,

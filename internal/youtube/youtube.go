@@ -135,6 +135,9 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, s
 				_ = ytOut.Close()
 			}
 
+			_ = ytStderr.Close()
+			_ = ffStderr.Close()
+
 			_ = pw.Close()
 			_ = pr.Close()
 

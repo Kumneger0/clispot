@@ -12,6 +12,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
+	"github.com/godbus/dbus/v5"
+	"github.com/godbus/dbus/v5/prop"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
 )
@@ -39,6 +41,12 @@ type Model struct {
 	Width                                   int
 	Search                                  textinput.Model
 	MusicQueueList                          list.Model
+	DBusConn                                *Instance
+}
+
+type Instance struct {
+	Props *prop.Properties
+	Conn  *dbus.Conn
 }
 
 func (m Model) Init() tea.Cmd {

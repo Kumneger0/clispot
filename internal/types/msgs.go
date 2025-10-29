@@ -12,3 +12,15 @@ type UpdatePlaylistMsg struct {
 type UpdatePlayedSeconds struct {
 	CurrentSeconds float64
 }
+
+type MessageType string
+
+const (
+	NextTrack     MessageType = "nextTrack"
+	PreviousTrack MessageType = "previousTrack"
+	PlayPause     MessageType = "playPause"
+)
+
+type DBusMessage struct {
+	MessageType
+}

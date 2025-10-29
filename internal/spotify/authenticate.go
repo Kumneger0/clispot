@@ -180,6 +180,7 @@ func getToken(encodedFormData string) (*types.UserTokenInfo, error) {
 	}
 
 	var tokenResponse types.UserTokenInfo
+
 	if err := json.Unmarshal(jsonBytes, &tokenResponse); err != nil {
 		slog.Error(err.Error())
 		return &types.UserTokenInfo{}, err

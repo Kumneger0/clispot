@@ -1,55 +1,44 @@
 package ui
 
 import (
+	"log"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/godbus/dbus/v5"
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
 )
 
-var testLyrics = `
-Yeah
-I've been tryna call
-I've been on my own for long enough
-Maybe you can show me how to love, maybe
-I'm goin' through withdrawals
-You don't even have to do too much
-You can turn me
-Sin City's cold and empty (oh)
-No one's around to judge me (oh)
-I can't see clearly when you're gone
-I said, ooh, I'm blinded by the lights
-No, I can't sleep until I feel your touch
-I said, ooh, I'm drowning in the night
-Oh, when I'm like this, you're the one I trust
-(Hey, hey, hey)
-I'm running out of time
-'Cause I can see the sun light up the sky
-So I hit the road in overdrive, baby, oh
-The city's cold and empty (oh)
-No one's around to judge me (oh)
-I can't see clearly when you're gone
-I said, ooh, I'm blinded by the lights
-No, I can't sleep until I feel your touch
-I said, ooh, I'm drowning in the night
-Oh, when I'm like this, you're the one I trust
-I'm just walking by to let you know (by to let you know)
-I could never say it on the phone (say it on the phone)
-Will never let you go this time (ooh)
-I said, ooh, I'm blinded by the lights
-No, I can't sleep until I feel your touch
-(Hey, hey, hey)
-(Hey, hey, hey)
-I said, ooh, I'm blinded by the lights
-No, I can't sleep until I feel your touch`
+var testLyrics = `working hard to get the lyrics for you`
+
+type MusicMetadata struct {
+	artistName string
+	title      string
+	length     int64
+}
+
+func getMusicMetadata(music MusicMetadata) map[string]interface{} {
+	var metadata = map[string]interface{}{
+		"mpris:trackid": "/org/mpris/MediaPlayer2/" + music.title,
+		"mpris:length":  music.length,
+		"xesam:title":   music.title,
+		"xesam:artist":  music.artistName,
+	}
+	return metadata
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.DBusMessage:
+		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
+		m = model
+		cmds = append(cmds, cmd)
 	case types.UpdatePlayedSeconds:
 		m.PlayedSeconds = msg.CurrentSeconds
 		cmd := func() tea.Cmd {
@@ -70,7 +59,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		diff := float64(totalDurationInSeconds) - (m.PlayedSeconds)
 
-		if diff < 2 {
+		if diff < 4 {
+			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true)
 			m = model
 			cmds = append(cmds, cmd)
@@ -93,7 +83,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for _, item := range msg.Playlist {
 				playListItemSongs = append(playListItemSongs, *item)
 			}
-			m.SelectedTrack = nil
 			cmd := m.SelectedPlayListItems.SetItems(playListItemSongs)
 			cmds = append(cmds, cmd)
 		}
@@ -108,6 +97,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		//TODO: do something here if no key matched
 	}
 	return updateFocusedComponent(&m, msg, &cmds)
+}
+
+func (m Model) handleDbusMessage(msg types.MessageType, cmds []tea.Cmd) (Model, tea.Cmd) {
+	switch msg {
+	case types.NextTrack:
+		model, cmd := m.handleMusicChange(true)
+		m = model
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+	case types.PreviousTrack:
+		model, cmd := m.handleMusicChange(false)
+		m = model
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+	case types.PlayPause:
+		model, cmd := m.handleMusicPausePlay()
+		m = model
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+	}
+	return m, nil
 }
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -138,7 +148,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
-	if m.FocusedOn != Player || len(m.MusicQueueList.Items()) <= 0 {
+	if len(m.MusicQueueList.Items()) <= 0 {
 		return m, nil
 	}
 	currentlySelectedMusicIndex := m.MusicQueueList.GlobalIndex()
@@ -165,13 +175,31 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 }
 
 func (m Model) handleMusicPausePlay() (Model, tea.Cmd) {
-	if m.FocusedOn != Player || m.PlayerProcess == nil {
+	if m.PlayerProcess == nil {
 		return m, nil
 	}
 	if m.PlayerProcess.OtoPlayer.IsPlaying() {
 		m.PlayerProcess.OtoPlayer.Pause()
+
+		dbusErr := m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
+			"PlaybackStatus",
+			dbus.MakeVariant("Paused"),
+		)
+		if dbusErr != nil {
+			slog.Error(dbusErr.Error())
+		}
 		return m, nil
 	}
+
+	dbusErr := m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
+		"PlaybackStatus",
+		dbus.MakeVariant("Playing"),
+	)
+
+	if dbusErr != nil {
+		slog.Error(dbusErr.Error())
+	}
+
 	m.PlayerProcess.OtoPlayer.Play()
 	return m, nil
 }
@@ -253,6 +281,31 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		})
 	}
 
+	metadata := getMusicMetadata(MusicMetadata{
+		artistName: strings.Join(artistNames, ","),
+		length:     int64(selectedMusic.Track.DurationMs),
+		title:      selectedMusic.Track.Name,
+	})
+
+	dbusErr := m.DBusConn.Props.Set(
+		"org.mpris.MediaPlayer2.Player",
+		"Metadata",
+		dbus.MakeVariant(metadata),
+	)
+
+	if dbusErr != nil {
+		log.Println(dbusErr, metadata)
+	}
+
+	dbusErr = m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
+		"PlaybackStatus",
+		dbus.MakeVariant("Playing"),
+	)
+
+	if dbusErr != nil {
+		log.Println(dbusErr, metadata)
+	}
+
 	m.PlayerProcess = process
 	m.SelectedTrack = &selectedMusic
 	return m, cmd()
@@ -267,8 +320,6 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 			m.FocusedOn = Player
 		} else {
 			m.FocusedOn = MainView
-			chatListLastIndex := len(m.SelectedPlayListItems.Items()) - 1
-			m.SelectedPlayListItems.Select(chatListLastIndex)
 		}
 	case MainView:
 		if shift {

@@ -19,3 +19,8 @@ repos:
         entry: make lint
         language: system
         types: [go]
+      - id: commit-msg
+        name: commit-msg
+        entry: ./scripts/hooks/commit-msg
+        language: script
+        stages: [commit-msg]

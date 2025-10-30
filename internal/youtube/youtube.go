@@ -2,7 +2,7 @@ package youtube
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
@@ -98,7 +98,8 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, s
 	}
 	ctx, ready, err := getOtoContext()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		return nil, err
 	}
 
 	if shouldWait {

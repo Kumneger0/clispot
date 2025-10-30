@@ -1,8 +1,26 @@
 # clispot
+ 
+listen to your favorite spotify songs right from your terminal
 
-clispot is cli based spotify client
+## TODO
+- [ ] like/unlike Song
+- [ ] add to playlist
+- [ ] advanced search
+  - [ ] filter search by type (track, album, artist)
+  - [ ] jump to artist/album view from results
+- [ ] queue Management
+  - [ ] view track queue
+  - [ ] reorder queue
+  - [ ] remove track from queue
+- [ ] spotify Recommendations
+  - [ ] get recommendations based on current track
+  - [ ] view personalized "For You" recommendations
+- [x] spotify library browsing
+  - [ ] liked songs
+  - [ ] saved albums
+  - [x] followed artists 
+  - [x] saved playlist
 
-For full documentation, please visit: [kumneger0.github.io/clispot](https://kumneger0.github.io/clispot)
 
 ## Demo
 

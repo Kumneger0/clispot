@@ -26,7 +26,7 @@ var (
 func newRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clispot",
-		Short: "clispot a cli based telegram client",
+		Short: "spotify music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			token, err := spotify.ReadUserCredentials()
 
@@ -90,6 +90,7 @@ func newRootCmd(version string) *cobra.Command {
 				MusicQueueList:        musicQueueList,
 				DBusConn:              ins,
 			}
+
 			Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 			go func() {

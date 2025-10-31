@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/term"
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
 	"github.com/kumneger0/clispot/internal/spotify"
@@ -22,12 +20,20 @@ import (
 type FocusedOn string
 
 const (
-	SideView  FocusedOn = "SIDE_VIEW"
-	MainView  FocusedOn = "MAIN_VIEW"
-	Player    FocusedOn = "PLAYER"
-	SearchBar FocusedOn = "SEARCH_BAR"
-	QueueList FocusedOn = "QUEUE_LIST"
+	SideView             FocusedOn = "SIDE_VIEW"
+	MainView             FocusedOn = "MAIN_VIEW"
+	Player               FocusedOn = "PLAYER"
+	SearchBar            FocusedOn = "SEARCH_BAR"
+	QueueList            FocusedOn = "QUEUE_LIST"
+	SearchResult         FocusedOn = "SEARCH_RESULT"
+	SearchResultTrack    FocusedOn = "SEARCH_RESULT_TRACK"
+	SearchResultArtist   FocusedOn = "SEARCH_RESULT_ARTIST"
+	SearchResultPlaylist FocusedOn = "SEARCH_RESULT_PLAYLIST"
 )
+
+type SpotifySearchResult struct {
+	Tracks, Artists, Albums, Playlists list.Model
+}
 
 type Model struct {
 	Playlist                                list.Model
@@ -43,6 +49,8 @@ type Model struct {
 	Search                                  textinput.Model
 	MusicQueueList                          list.Model
 	DBusConn                                *Instance
+	IsSearchLoading                         bool
+	SearchResult                            *SpotifySearchResult
 }
 
 type Instance struct {
@@ -75,18 +83,22 @@ func (m Model) View() string {
 	dimensions := calculateLayoutDimensions(&m)
 	updateListDimensions(&m, dimensions)
 
-	playlistView := getSideBarStyles(dimensions.sidebarWidth, dimensions.contentHeight, &m).Render(m.Playlist.View())
+	playlistView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.Playlist.View())
 
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
-
 	var mainView string
-
-	// if m.SelectedTrack != nil {
-	// 	mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
-	// } else {
-	mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).
-		Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
-	// }
+	if m.IsSearchLoading {
+		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, "loading...."))
+	} else if m.SearchResult != nil {
+		trackView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultTrack).Render(m.SearchResult.Tracks.View())
+		artistView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultArtist).Render(m.SearchResult.Artists.View())
+		playlistView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultPlaylist).Render(m.SearchResult.Playlists.View())
+		searchResultView := lipgloss.JoinVertical(lipgloss.Top, searchBar, lipgloss.JoinVertical(lipgloss.Top, "Search Result", lipgloss.JoinHorizontal(lipgloss.Top, trackView, artistView, playlistView)))
+		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(searchResultView)
+	} else {
+		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).
+			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
+	}
 
 	var playingView string
 
@@ -103,7 +115,6 @@ func (m Model) View() string {
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
 		total := time.Duration(m.SelectedTrack.Track.DurationMS) * time.Millisecond
-
 		playingView = renderNowPlaying(m.SelectedTrack.Track.Name, artistName, currentPosition, total)
 	}
 
@@ -112,7 +123,7 @@ func (m Model) View() string {
 
 	playing := getPlayerStyles(&m, dimensions).Foreground(lipgloss.Color("21")).Render(playingCombined)
 
-	queueList := getQueueListStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth).Render(m.MusicQueueList.View())
+	queueList := getListStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
 
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, playlistView, mainView, queueList),
@@ -160,21 +171,6 @@ func updateListDimensions(m *Model, d layoutDimensions) {
 	m.Playlist.SetWidth(d.sidebarWidth)
 	m.SelectedPlayListItems.SetHeight(listHeight)
 	m.SelectedPlayListItems.SetWidth(d.sidebarWidth)
-}
-
-func getTerminalWidth() int {
-	if !term.IsTerminal(os.Stdin.Fd()) {
-		fmt.Println("Not running in a terminal.")
-		return 0
-	}
-
-	width, _, err := term.GetSize(os.Stdin.Fd())
-	if err != nil {
-		fmt.Printf("Error getting terminal size: %v\n", err)
-		return 0
-	}
-
-	return width
 }
 
 func removeListDefaults(listToRemoveDefaults *list.Model) {

@@ -23,7 +23,7 @@ func (d CustomDelegate) Height() int {
 }
 
 func (d CustomDelegate) Spacing() int {
-	return 1
+	return 0
 }
 
 func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
@@ -32,16 +32,30 @@ func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 
 func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	var title string
+	var isSelected bool
 	switch item := item.(type) {
-	case types.SpotifyPlaylist, types.PlaylistTrackObject, types.Artist:
+	case types.PlaylistTrackObject:
 		title = item.FilterValue()
-		str := lipgloss.NewStyle().Render(title)
-		if index == m.Index() {
-			fmt.Fprint(w, selectedStyle.Render(" "+str+" "))
-		} else {
-			fmt.Fprint(w, normalStyle.Render(" "+str+" "))
+		if d.Model != nil {
+			isSelected = (d.Model.FocusedOn == MainView || d.Model.FocusedOn == QueueList) && m.Index() == index
+		}
+	case types.Artist:
+		title = item.FilterValue()
+		if d.Model != nil {
+			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
+		}
+	case types.Playlist:
+		title = item.FilterValue()
+		if d.Model != nil {
+			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
 		}
 	default:
+	}
+	str := lipgloss.NewStyle().Render(title)
+	if isSelected || index == m.Index() {
+		fmt.Fprint(w, selectedStyle.Render(" "+str+" "))
+	} else {
+		fmt.Fprint(w, normalStyle.Render(" "+str+" "))
 	}
 }
 
@@ -65,7 +79,6 @@ func renderSearchBar(m *Model, width int) string {
 	} else {
 		content = strings.TrimRight(m.Search.View(), "\n")
 	}
-
 	return strings.TrimRight(box.Render(content), "\n")
 }
 

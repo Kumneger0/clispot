@@ -32,9 +32,71 @@ func getMusicMetadata(music MusicMetadata) map[string]interface{} {
 	return metadata
 }
 
+func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model, tea.Cmd) {
+	var tracks []list.Item
+	for _, value := range searchResponse.Tracks.Items {
+		track := types.PlaylistTrackObject{
+			AddedAt: "",
+			AddedBy: nil,
+			IsLocal: false,
+			Track:   value,
+		}
+		tracks = append(tracks, track)
+	}
+	var artist []list.Item
+	for _, value := range searchResponse.Artists.Items {
+		artist = append(artist, value)
+	}
+	var playlist []list.Item
+	for _, value := range searchResponse.Playlists.Items {
+		playlist = append(playlist, value)
+	}
+
+	if m.SearchResult != nil {
+		m.SearchResult.Tracks.SetItems(tracks)
+		m.SearchResult.Artists.SetItems(artist)
+		m.SearchResult.Playlists.SetItems(playlist)
+		return m, nil
+	}
+
+	searchResult := SpotifySearchResult{
+		Tracks:    list.New(tracks, CustomDelegate{Model: &m}, 10, 20),
+		Artists:   list.New(artist, CustomDelegate{Model: &m}, 10, 20),
+		Playlists: list.New(playlist, CustomDelegate{Model: &m}, 10, 20),
+	}
+	m.SearchResult = &searchResult
+	return m, nil
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.SearchingMsg:
+		m.IsSearchLoading = true
+	case types.SpotifySearchResultMsg:
+		if msg.Err != nil {
+			//hmm not again
+			//reminder
+			//TODO: don't forgot to show the error for the user
+		}
+
+		if msg.Result != nil {
+			m.FocusedOn = SearchResult
+			model, cmd := m.getSearchResultModel(msg.Result)
+			m = model
+			removeListDefaults(&m.SearchResult.Artists)
+			removeListDefaults(&m.SearchResult.Playlists)
+			removeListDefaults(&m.SearchResult.Tracks)
+
+			if m.SearchResult != nil {
+				m.SearchResult.Tracks.Title = "Tracks"
+				m.SearchResult.Artists.Title = "artist"
+				m.SearchResult.Playlists.Title = "playlist"
+			}
+			cmds = append(cmds, cmd)
+			m.IsSearchLoading = false
+		}
+
 	case *types.UserFollowedArtistResponse:
 		playlist := m.Playlist.Items()
 		for _, artist := range msg.Artists.Items {
@@ -90,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for _, item := range msg.Playlist {
 				playListItemSongs = append(playListItemSongs, *item)
 			}
+			m.SearchResult = nil
 			cmd := m.SelectedPlayListItems.SetItems(playListItemSongs)
 			cmds = append(cmds, cmd)
 		}
@@ -195,6 +258,7 @@ func (m Model) handleMusicPausePlay() (Model, tea.Cmd) {
 		if dbusErr != nil {
 			slog.Error(dbusErr.Error())
 		}
+
 		return m, nil
 	}
 
@@ -222,6 +286,25 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 }
 
 func (m Model) handleEnterKey() (Model, tea.Cmd) {
+	if m.FocusedOn == SearchBar {
+		if m.UserTokenInfo == nil {
+			//this should't happen but i need to show some kind of error message
+			//TODO: FIND A WAY TO SHOW  ERROR MESSAGE
+			return m, nil
+		}
+		query := m.Search.Value()
+		loadingCmd := func() tea.Msg {
+			return types.SearchingMsg{}
+		}
+		searchingCmd := func() tea.Msg {
+			searchResult, err := spotify.Search(m.UserTokenInfo.AccessToken, query)
+			return types.SpotifySearchResultMsg{
+				Result: searchResult,
+				Err:    err,
+			}
+		}
+		return m, tea.Batch(loadingCmd, searchingCmd)
+	}
 	if m.FocusedOn == MainView || m.FocusedOn == QueueList {
 		listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)
 		selectedMusic, ok := listItemToChooseMusicFrom.SelectedItem().(types.PlaylistTrackObject)
@@ -240,36 +323,82 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			return m, nil
 		}
 		switch selectedItem := m.Playlist.SelectedItem().(type) {
-		case types.SpotifyPlaylist:
-			cmd := func() tea.Msg {
-				playlistItems, err := spotify.GetPlaylistItems(selectedItem.ID, m.UserTokenInfo.AccessToken)
-				return types.UpdatePlaylistMsg{
-					Playlist: playlistItems.Items,
-					Err:      err,
-				}
-			}
+		case types.Playlist:
+			cmd := getPlaylistItems(m.UserTokenInfo.AccessToken, selectedItem.ID)
 			return m, cmd
 		case types.Artist:
-			cmd := func() tea.Msg {
-				artistSongs, err := spotify.GetArtistsTopTrackURL(m.UserTokenInfo.AccessToken, selectedItem.ID)
-				var tracks []*types.PlaylistTrackObject
-				for _, track := range artistSongs.Tracks {
-					tracks = append(tracks, &types.PlaylistTrackObject{
-						AddedAt: "",
-						AddedBy: nil,
-						IsLocal: false,
-						Track:   track,
-					})
-				}
-				return types.UpdatePlaylistMsg{
-					Playlist: tracks,
-					Err:      err,
-				}
-			}
+			cmd := getArtistTracks(m.UserTokenInfo.AccessToken, selectedItem.ID)
 			return m, cmd
 		}
 	}
+	if m.FocusedOn == SearchResultArtist {
+		if m.UserTokenInfo == nil {
+			slog.Error("failed to get user access token")
+			return m, nil
+		}
+		selectedItem, ok := m.SearchResult.Artists.SelectedItem().(types.Artist)
+		if !ok {
+			slog.Error("failed to cast the selected item to types.Artist")
+			return m, nil
+		}
+		cmd := getArtistTracks(m.UserTokenInfo.AccessToken, selectedItem.ID)
+		return m, cmd
+	}
+	if m.FocusedOn == SearchResultPlaylist {
+		if m.UserTokenInfo == nil {
+			slog.Error("failed to get user access token")
+			return m, nil
+		}
+		selectedItem, ok := m.SearchResult.Playlists.SelectedItem().(types.Playlist)
+		if !ok {
+			slog.Error("failed to cast the selected item to types.Artist")
+			return m, nil
+		}
+		cmd := getPlaylistItems(m.UserTokenInfo.AccessToken, selectedItem.ID)
+		return m, cmd
+	}
+	if m.FocusedOn == SearchResultTrack {
+		if m.UserTokenInfo == nil {
+			slog.Error("failed to get user access token")
+			return m, nil
+		}
+		selectedMusic, ok := m.SearchResult.Tracks.SelectedItem().(types.PlaylistTrackObject)
+		if !ok {
+			slog.Error("failed to cast the selected item to types.Artist")
+			return m, nil
+		}
+		return m.PlaySelectedMusic(selectedMusic)
+	}
 	return m, nil
+}
+
+func getArtistTracks(accessToken, artistID string) tea.Cmd {
+	return func() tea.Msg {
+		artistSongs, err := spotify.GetArtistsTopTrackURL(accessToken, artistID)
+		var tracks []*types.PlaylistTrackObject
+		for _, track := range artistSongs.Tracks {
+			tracks = append(tracks, &types.PlaylistTrackObject{
+				AddedAt: "",
+				AddedBy: nil,
+				IsLocal: false,
+				Track:   track,
+			})
+		}
+		return types.UpdatePlaylistMsg{
+			Playlist: tracks,
+			Err:      err,
+		}
+	}
+}
+
+func getPlaylistItems(accessToken, playlistID string) tea.Cmd {
+	return func() tea.Msg {
+		playlistItems, err := spotify.GetPlaylistItems(playlistID, accessToken)
+		return types.UpdatePlaylistMsg{
+			Playlist: playlistItems.Items,
+			Err:      err,
+		}
+	}
 }
 
 func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model, tea.Cmd) {
@@ -295,7 +424,6 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		//TODO: implement some kind of way to show the error message
 		return m, nil
 	}
-
 	cmd := func() tea.Cmd {
 		return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
 			if process != nil {
@@ -332,7 +460,6 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	if dbusErr != nil {
 		log.Println(dbusErr, metadata)
 	}
-
 	m.PlayerProcess = process
 	m.SelectedTrack = &selectedMusic
 	return m, cmd()
@@ -352,13 +479,33 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 		if shift {
 			m.FocusedOn = SideView
 		} else {
-			m.FocusedOn = QueueList
+			m.FocusedOn = SearchResultTrack
+			// m.FocusedOn = QueueList
 		}
 	case QueueList:
 		if shift {
 			m.FocusedOn = MainView
 		} else {
 			m.FocusedOn = Player
+		}
+	case SearchResultPlaylist:
+		//do something here
+		if shift {
+			m.FocusedOn = SearchResultArtist
+		} else {
+			m.FocusedOn = QueueList
+		}
+	case SearchResultTrack:
+		if shift {
+			m.FocusedOn = SideView
+		} else {
+			m.FocusedOn = SearchResultArtist
+		}
+	case SearchResultArtist:
+		if shift {
+			m.FocusedOn = SearchResultTrack
+		} else {
+			m.FocusedOn = SearchResultPlaylist
 		}
 	default:
 		if shift {
@@ -389,6 +536,21 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 	case QueueList:
 		m.MusicQueueList, cmd = m.MusicQueueList.Update(msg)
 		cmds = append(cmds, cmd)
+	case SearchResultPlaylist:
+		if m.SearchResult != nil {
+			m.SearchResult.Playlists, cmd = m.SearchResult.Playlists.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+	case SearchResultArtist:
+		if m.SearchResult != nil {
+			m.SearchResult.Artists, cmd = m.SearchResult.Artists.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+	case SearchResultTrack:
+		if m.SearchResult != nil {
+			m.SearchResult.Tracks, cmd = m.SearchResult.Tracks.Update(msg)
+			cmds = append(cmds, cmd)
+		}
 	default:
 		m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
 		cmds = append(cmds, cmd)

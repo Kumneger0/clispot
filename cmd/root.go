@@ -45,7 +45,7 @@ func newRootCmd(version string) *cobra.Command {
 
 			featuredPlaylist, err := spotify.GetFeaturedPlaylist(token.AccessToken)
 
-			playListToRender := func() []types.SpotifyPlaylist {
+			playListToRender := func() []types.Playlist {
 				if err == nil && featuredPlaylist != nil {
 					return featuredPlaylist.Playlists.Items
 				}
@@ -53,25 +53,10 @@ func newRootCmd(version string) *cobra.Command {
 				if err != nil || userPlayList == nil {
 					slog.Error(err.Error())
 					fmt.Fprintln(os.Stdout, err)
-					return []types.SpotifyPlaylist{}
+					return []types.Playlist{}
 				}
 				return userPlayList.Items
 			}()
-
-			var items []list.Item
-			for _, item := range playListToRender {
-				items = append(items, item)
-			}
-
-			playlists := list.New(items, ui.CustomDelegate{}, 10, 20)
-			playlistItems := list.New([]list.Item{}, ui.CustomDelegate{}, 10, 20)
-
-			input := textinput.New()
-			input.Placeholder = "Search tracks, artists, albums..."
-			input.Prompt = "> "
-			input.CharLimit = 256
-
-			musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{}, 10, 20)
 
 			ins, messageChan, err := mpris.GetDbusInstance()
 
@@ -79,17 +64,33 @@ func newRootCmd(version string) *cobra.Command {
 				slog.Error(err.Error())
 			}
 
-			defer ins.Conn.Close()
+			var items []list.Item
+			for _, item := range playListToRender {
+				items = append(items, item)
+			}
 
 			model := ui.Model{
-				Playlist:              playlists,
-				UserTokenInfo:         token,
-				SelectedPlayListItems: playlistItems,
-				FocusedOn:             ui.SideView,
-				Search:                input,
-				MusicQueueList:        musicQueueList,
-				DBusConn:              ins,
+				UserTokenInfo: token,
+				FocusedOn:     ui.SideView,
+				DBusConn:      ins,
 			}
+
+			playlists := list.New(items, ui.CustomDelegate{Model: &model}, 10, 20)
+			playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+
+			input := textinput.New()
+			input.Placeholder = "Search tracks, artists, albums..."
+			input.Prompt = "> "
+			input.CharLimit = 256
+
+			model.Search = input
+			musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+
+			model.Playlist = playlists
+			model.SelectedPlayListItems = playlistItems
+			model.MusicQueueList = musicQueueList
+
+			defer ins.Conn.Close()
 
 			Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 

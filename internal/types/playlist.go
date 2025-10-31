@@ -1,54 +1,36 @@
 package types // nolint:revive
 
-type SpotifyPlaylist struct {
-	Collaborative bool   `json:"collaborative"`
-	Description   string `json:"description"`
-	ExternalURLs  struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Href   string `json:"href"`
-	ID     string `json:"id"`
-	Images []struct {
-		URL    string `json:"url"`
-		Height int    `json:"height"`
-		Width  int    `json:"width"`
-	} `json:"images"`
-	Name  string `json:"name"`
-	Owner struct {
-		ExternalURLs struct {
-			Spotify string `json:"spotify"`
-		} `json:"external_urls"`
-		Href        string `json:"href"`
-		ID          string `json:"id"`
-		Type        string `json:"type"`
-		URI         string `json:"uri"`
-		DisplayName string `json:"display_name"`
-	} `json:"owner"`
-	Public     bool   `json:"public"`
-	SnapshotID string `json:"snapshot_id"`
-	Tracks     struct {
-		Href  string `json:"href"`
-		Total int    `json:"total"`
-	} `json:"tracks"`
-	Type string `json:"type"`
-	URI  string `json:"uri"`
+type Playlist struct {
+	Collaborative bool           `json:"collaborative"`
+	Description   string         `json:"description"`
+	ExternalURLs  ExternalURLs   `json:"external_urls"`
+	Href          string         `json:"href"`
+	ID            string         `json:"id"`
+	Images        []Image        `json:"images"`
+	Name          string         `json:"name"`
+	Owner         PlaylistOwner  `json:"owner"`
+	Public        bool           `json:"public"`
+	SnapshotID    string         `json:"snapshot_id"`
+	Tracks        PlaylistTracks `json:"tracks"`
+	Type          string         `json:"type"`
+	URI           string         `json:"uri"`
 }
 
-func (spotifyPlaylist SpotifyPlaylist) FilterValue() string {
+func (spotifyPlaylist Playlist) FilterValue() string {
 	return spotifyPlaylist.Name + " (playlist)"
 }
-func (spotifyPlaylist SpotifyPlaylist) Title() string {
+func (spotifyPlaylist Playlist) Title() string {
 	return spotifyPlaylist.Name + " (playlist)"
 }
 
 type PlaylistPage struct {
-	Href     string            `json:"href"`
-	Limit    int               `json:"limit"`
-	Next     string            `json:"next"`
-	Offset   int               `json:"offset"`
-	Previous string            `json:"previous"`
-	Total    int               `json:"total"`
-	Items    []SpotifyPlaylist `json:"items"`
+	Href     string     `json:"href"`
+	Limit    int        `json:"limit"`
+	Next     string     `json:"next"`
+	Offset   int        `json:"offset"`
+	Previous string     `json:"previous"`
+	Total    int        `json:"total"`
+	Items    []Playlist `json:"items"`
 }
 
 type FeaturedPlaylistsResponse struct {

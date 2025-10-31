@@ -28,17 +28,6 @@ func getItemBorder(isSelected bool) lipgloss.Border {
 	return lipgloss.NormalBorder()
 }
 
-func getSideBarStyles(sidebarWidth int, contentHeight int, m *Model) lipgloss.Style {
-	sideBarStyle := lipgloss.NewStyle().
-		Width(sidebarWidth).
-		Height(contentHeight).
-		Padding(0).
-		Border(getItemBorder(m.FocusedOn == SideView)).
-		BorderForeground(getBorderColor(m.FocusedOn == SideView)).
-		MaxHeight(contentHeight)
-	return sideBarStyle
-}
-
 func getMainStyle(mainWidth int, contentHeight int, m *Model) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(mainWidth).
@@ -65,12 +54,12 @@ func getPlayerStyles(m *Model, dims layoutDimensions) lipgloss.Style {
 	return inputStyle
 }
 
-func getQueueListStyle(m *Model, height, width int) lipgloss.Style {
+func getListStyle(m *Model, height, width int, focusedOn FocusedOn) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
 		Padding(0).
-		Border(getItemBorder(m.FocusedOn == QueueList)).
-		BorderForeground(getBorderColor(m.FocusedOn == QueueList)).
+		Border(getItemBorder(m.FocusedOn == focusedOn)).
+		BorderForeground(getBorderColor(m.FocusedOn == focusedOn)).
 		MaxHeight(height)
 }

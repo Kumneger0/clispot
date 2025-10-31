@@ -202,7 +202,22 @@ func RefreshToken(refreshToken string) (*types.UserTokenInfo, error) {
 	formData := url.Values{}
 	formData.Set("grant_type", "refresh_token")
 	formData.Set("refresh_token", refreshToken)
-	return getToken(formData.Encode())
+
+	token, err := getToken(formData.Encode())
+	if err != nil {
+		return nil, err
+	}
+
+	if token.RefreshToken == "" {
+		token.RefreshToken = refreshToken
+	}
+
+	err = saveUserCredentials(*token)
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
 }
 
 func saveUserCredentials(userCredentials types.UserTokenInfo) error {

@@ -24,3 +24,10 @@ const (
 type DBusMessage struct {
 	MessageType
 }
+
+type SearchingMsg struct{}
+
+type SpotifySearchResultMsg struct {
+	Result *SearchResponse
+	Err    error
+}

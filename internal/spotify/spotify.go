@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/kumneger0/clispot/internal/types"
 )
@@ -28,6 +30,7 @@ const (
 	artistsURL          = "https://api.spotify.com/v1/artists/"
 	followedArtistURL   = "https://api.spotify.com/v1/me/following?type=artist"
 	userTopItemsBaseURL = "https://api.spotify.com/v1/me/top/"
+	searchBaseURL       = "https://api.spotify.com/v1/search"
 )
 
 type APIURLS interface {
@@ -40,6 +43,7 @@ type APIURLS interface {
 	GetFollowedArtistURL() string
 	GetUserTopItems(itemType UserTopItem) string
 	GetArtistsTopTrackURL(id string) string
+	GetSearchURL(q string) string
 }
 
 type apiURL struct{}
@@ -49,6 +53,20 @@ var APIURL APIURLS = apiURL{}
 func (a apiURL) GetPlaylistBaseURL() string {
 	return playlistBase
 }
+func (a apiURL) GetSearchURL(q string) string {
+	searchType := "track,artist,playlist"
+	limit := 10
+	market := "US"
+	offset := 0
+	searchParams := url.Values{}
+	searchParams.Add("q", q)
+	searchParams.Add("type", searchType)
+	searchParams.Add("limit", strconv.Itoa(limit))
+	searchParams.Add("market", market)
+	searchParams.Add("offset", strconv.Itoa(offset))
+	return searchBaseURL + "?" + searchParams.Encode()
+}
+
 func (a apiURL) GetFeaturedPlayListURL() string {
 	return featuredPlaylistBase
 }
@@ -84,14 +102,32 @@ type Decoder struct {
 	Track            types.SpotifyUser
 }
 
-func makeRequest(method string, url string, authorizationHeader string) (*http.Response, error) {
-	req, err := http.NewRequest(method, url, nil)
+func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader string) (*http.Response, error) {
+	req, err := http.NewRequest(method, urlToMakeRequestTo, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
 	}
 	req.Header.Add("Authorization", authorizationHeader)
 	return http.DefaultClient.Do(req)
+}
+
+func Search(accessToken string, query string) (*types.SearchResponse, error) {
+	authorizationHeader := "Bearer " + accessToken
+	resp, err := makeRequest("GET", APIURL.GetSearchURL(query), authorizationHeader)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	var searchResponse *types.SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&searchResponse); err != nil {
+		return nil, err
+	}
+	return searchResponse, nil
 }
 
 func GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistTopTracks, error) {

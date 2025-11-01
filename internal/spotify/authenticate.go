@@ -34,30 +34,9 @@ type Secret struct {
 	ClientSecret string
 }
 
-func getSecrets() *Secret {
-	ClientID, ok := os.LookupEnv("Client_ID")
-
-	if !ok {
-		fmt.Println("Client_ID environment variable not set")
-		os.Exit(1)
-	}
-
-	ClientSecret, ok := os.LookupEnv("Client_Secret")
-
-	if !ok {
-		fmt.Println("Client_Secret environment variable not set")
-		os.Exit(1)
-	}
-
-	return &Secret{
-		ClientID:     ClientID,
-		ClientSecret: ClientSecret,
-	}
-}
-
-func Authenticate() {
+func Authenticate(spotifyClientID, spotifyClientSecret string) {
 	var state = generateRandomString(16)
-	logAuthenticationURL(state)
+	logAuthenticationURL(state, spotifyClientID)
 
 	mux := http.NewServeMux()
 	server := &http.Server{
@@ -84,7 +63,7 @@ func Authenticate() {
 		formData.Set("redirect_uri", redirectURL)
 		formData.Set("grant_type", "authorization_code")
 
-		_, err := getToken(formData.Encode())
+		_, err := getToken(formData.Encode(), spotifyClientID, spotifyClientSecret)
 		if err != nil {
 			slog.Error(err.Error())
 			fmt.Fprintf(w, "Error: %s\n", err)
@@ -115,10 +94,9 @@ func generateRandomString(length int) string {
 	return result
 }
 
-func logAuthenticationURL(state string) {
-	secret := getSecrets()
+func logAuthenticationURL(state string, spotifyClientID string) {
 	params := url.Values{}
-	params.Set("client_id", secret.ClientID)
+	params.Set("client_id", spotifyClientID)
 	params.Set("response_type", "code")
 	params.Set("redirect_uri", redirectURL)
 	params.Set("scope", scope)
@@ -147,9 +125,8 @@ func openFileInDefaultApp(path string) error {
 	return cmd.Start()
 }
 
-func getToken(encodedFormData string) (*types.UserTokenInfo, error) {
-	secret := getSecrets()
-	authString := secret.ClientID + ":" + secret.ClientSecret
+func getToken(encodedFormData string, spotifyClientID, spotifyClientSecret string) (*types.UserTokenInfo, error) {
+	authString := spotifyClientID + ":" + spotifyClientSecret
 	base64Auth := base64.StdEncoding.EncodeToString([]byte(authString))
 
 	req, err := http.NewRequest("POST", tokenRL, strings.NewReader(encodedFormData))
@@ -198,12 +175,12 @@ func getToken(encodedFormData string) (*types.UserTokenInfo, error) {
 	return &tokenResponse, nil
 }
 
-func RefreshToken(refreshToken string) (*types.UserTokenInfo, error) {
+func RefreshToken(refreshToken string, spotifyClientID, spotifyClientSecret string) (*types.UserTokenInfo, error) {
 	formData := url.Values{}
 	formData.Set("grant_type", "refresh_token")
 	formData.Set("refresh_token", refreshToken)
 
-	token, err := getToken(formData.Encode())
+	token, err := getToken(formData.Encode(), spotifyClientID, spotifyClientSecret)
 	if err != nil {
 		return nil, err
 	}

@@ -23,7 +23,7 @@ var (
 	Program *tea.Program
 )
 
-func newRootCmd(version string) *cobra.Command {
+func newRootCmd(version string, spotifyClientID string, spotifyClientSecret string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clispot",
 		Short: "spotify music player",
@@ -32,14 +32,13 @@ func newRootCmd(version string) *cobra.Command {
 
 			if err != nil {
 				slog.Error(err.Error())
-				spotify.Authenticate()
+				spotify.Authenticate(spotifyClientID, spotifyClientSecret)
 			}
 
 			if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-				token, err = spotify.RefreshToken(token.RefreshToken)
+				token, err = spotify.RefreshToken(spotifyClientID, spotifyClientSecret, token.RefreshToken)
 				if err != nil {
 					slog.Error(err.Error())
-					log.Fatal(err)
 				}
 			}
 
@@ -116,8 +115,8 @@ func newRootCmd(version string) *cobra.Command {
 	return cmd
 }
 
-func Execute(version string) error {
-	if err := newRootCmd(version).Execute(); err != nil {
+func Execute(version string, spotifyClientID string, spotifyClientSecret string) error {
+	if err := newRootCmd(version, spotifyClientID, spotifyClientSecret).Execute(); err != nil {
 		return fmt.Errorf("error executing root command: %w", err)
 	}
 	return nil

@@ -12,12 +12,6 @@ builds:
     binary: clispot
     main: .
     ldflags: -s -w -X main.version={{ .Version }}
-    goos:
-      - linux
-      - darwin
-    goarch:
-      - amd64
-      # - arm64
     env:
       - CGO_ENABLED=1
 archives:

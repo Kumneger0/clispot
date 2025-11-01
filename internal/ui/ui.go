@@ -31,16 +31,29 @@ const (
 	SearchResultPlaylist FocusedOn = "SEARCH_RESULT_PLAYLIST"
 )
 
+type MainViewMode string
+
+const (
+	SearchResultMode MainViewMode = "SearchResultMode"
+	//currently im showing the search result in main area which is the center one
+	//let's say the user searches for a song or playlist and sees the result and he chose the first result
+	//at this time the previous are gone b/c i was sharing  this main new to show items in playlist and the search result
+	// so by adding this MainViewMode we can switch b/c modes so that we keep the result in memory
+	// meaning we can switch b/n search result and normal mode
+	NormalMode MainViewMode = "Normal Mode"
+)
+
 type SpotifySearchResult struct {
 	Tracks, Artists, Albums, Playlists list.Model
 }
 
 type Model struct {
-	Playlist                                list.Model
-	UserTokenInfo                           *types.UserTokenInfo
-	SelectedPlayListItems                   list.Model
-	LyricsView                              viewport.Model
-	FocusedOn                               FocusedOn
+	Playlist              list.Model
+	UserTokenInfo         *types.UserTokenInfo
+	SelectedPlayListItems list.Model
+	LyricsView            viewport.Model
+	FocusedOn             FocusedOn
+	MainViewMode
 	PlayerProcess                           *youtube.Player
 	SelectedTrack, NextTrack, PreviousTrack *types.PlaylistTrackObject
 	PlayedSeconds                           float64
@@ -49,8 +62,13 @@ type Model struct {
 	Search                                  textinput.Model
 	MusicQueueList                          list.Model
 	DBusConn                                *Instance
-	IsSearchLoading                         bool
-	SearchResult                            *SpotifySearchResult
+	//actually i need this b/c if user searches and selects playlist or artist
+	//at that time when he selects artist or playlist the search were hidden from mainView
+	//so that if search again we can show the previous result by comparing the query
+	// TODO: find a better way than this looks very ugly
+	SearchQuery     string
+	IsSearchLoading bool
+	SearchResult    *SpotifySearchResult
 }
 
 type Instance struct {
@@ -81,22 +99,21 @@ func (m Model) View() string {
 	removeListDefaults(&m.MusicQueueList)
 
 	dimensions := calculateLayoutDimensions(&m)
-	updateListDimensions(&m, dimensions)
 
-	playlistView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.Playlist.View())
+	playlistView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.Playlist.View())
 
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
 	var mainView string
 	if m.IsSearchLoading {
-		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, "loading...."))
-	} else if m.SearchResult != nil {
-		trackView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultTrack).Render(m.SearchResult.Tracks.View())
-		artistView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultArtist).Render(m.SearchResult.Artists.View())
-		playlistView := getListStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultPlaylist).Render(m.SearchResult.Playlists.View())
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, "loading...."))
+	} else if m.MainViewMode == SearchResultMode {
+		trackView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultTrack).Render(m.SearchResult.Tracks.View())
+		artistView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultArtist).Render(m.SearchResult.Artists.View())
+		playlistView := getStyle(&m, dimensions.mainWidth/4, dimensions.contentHeight, SearchResultPlaylist).Render(m.SearchResult.Playlists.View())
 		searchResultView := lipgloss.JoinVertical(lipgloss.Top, searchBar, lipgloss.JoinVertical(lipgloss.Top, "Search Result", lipgloss.JoinHorizontal(lipgloss.Top, trackView, artistView, playlistView)))
-		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).Render(searchResultView)
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
 	} else {
-		mainView = getMainStyle(dimensions.mainWidth, dimensions.contentHeight, &m).
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
 			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
 	}
 
@@ -123,7 +140,7 @@ func (m Model) View() string {
 
 	playing := getPlayerStyles(&m, dimensions).Foreground(lipgloss.Color("21")).Render(playingCombined)
 
-	queueList := getListStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
+	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
 
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, playlistView, mainView, queueList),
@@ -163,14 +180,6 @@ func calculateLayoutDimensions(m *Model) layoutDimensions {
 		contentHeight: m.Height * 85 / 100,
 		inputHeight:   inputHeight,
 	}
-}
-
-func updateListDimensions(m *Model, d layoutDimensions) {
-	listHeight := d.contentHeight - 4
-	m.Playlist.SetHeight(listHeight)
-	m.Playlist.SetWidth(d.sidebarWidth)
-	m.SelectedPlayListItems.SetHeight(listHeight)
-	m.SelectedPlayListItems.SetWidth(d.sidebarWidth)
 }
 
 func removeListDefaults(listToRemoveDefaults *list.Model) {

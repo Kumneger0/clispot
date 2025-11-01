@@ -2,6 +2,10 @@
  
 listen to your favorite spotify songs right from your terminal
 
+## 📖 Documentation
+
+For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [User Guide](docs/guide.md).
+
 ## TODO
 - [ ] like/unlike Song
 - [ ] add to playlist

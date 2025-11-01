@@ -55,7 +55,7 @@ func (a apiURL) GetPlaylistBaseURL() string {
 }
 func (a apiURL) GetSearchURL(q string) string {
 	searchType := "track,artist,playlist"
-	limit := 10
+	limit := 20
 	market := "US"
 	offset := 0
 	searchParams := url.Values{}

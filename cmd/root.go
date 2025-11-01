@@ -73,6 +73,7 @@ func newRootCmd(version string) *cobra.Command {
 				UserTokenInfo: token,
 				FocusedOn:     ui.SideView,
 				DBusConn:      ins,
+				MainViewMode:  ui.NormalMode,
 			}
 
 			playlists := list.New(items, ui.CustomDelegate{Model: &model}, 10, 20)

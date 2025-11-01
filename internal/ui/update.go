@@ -82,6 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if msg.Result != nil {
 			m.FocusedOn = SearchResult
+			m.MainViewMode = SearchResultMode
 			model, cmd := m.getSearchResultModel(msg.Result)
 			m = model
 			removeListDefaults(&m.SearchResult.Artists)
@@ -152,7 +153,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for _, item := range msg.Playlist {
 				playListItemSongs = append(playListItemSongs, *item)
 			}
-			m.SearchResult = nil
+			m.MainViewMode = NormalMode
+			m.IsSearchLoading = false
 			cmd := m.SelectedPlayListItems.SetItems(playListItemSongs)
 			cmds = append(cmds, cmd)
 		}
@@ -293,9 +295,13 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			return m, nil
 		}
 		query := m.Search.Value()
-		loadingCmd := func() tea.Msg {
-			return types.SearchingMsg{}
+
+		if query == m.SearchQuery && m.SearchResult != nil {
+			m.MainViewMode = SearchResultMode
+			return m, nil
 		}
+
+		loadingCmd := SendLoadingCmd()
 		searchingCmd := func() tea.Msg {
 			searchResult, err := spotify.Search(m.UserTokenInfo.AccessToken, query)
 			return types.SpotifySearchResultMsg{
@@ -303,6 +309,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 				Err:    err,
 			}
 		}
+		m.SearchQuery = query
 		return m, tea.Batch(loadingCmd, searchingCmd)
 	}
 	if m.FocusedOn == MainView || m.FocusedOn == QueueList {
@@ -322,13 +329,15 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			slog.Error("failed to get user access token")
 			return m, nil
 		}
+
+		loadingCmd := SendLoadingCmd()
 		switch selectedItem := m.Playlist.SelectedItem().(type) {
 		case types.Playlist:
 			cmd := getPlaylistItems(m.UserTokenInfo.AccessToken, selectedItem.ID)
-			return m, cmd
+			return m, tea.Batch(loadingCmd, cmd)
 		case types.Artist:
 			cmd := getArtistTracks(m.UserTokenInfo.AccessToken, selectedItem.ID)
-			return m, cmd
+			return m, tea.Batch(loadingCmd, cmd)
 		}
 	}
 	if m.FocusedOn == SearchResultArtist {
@@ -341,8 +350,10 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			slog.Error("failed to cast the selected item to types.Artist")
 			return m, nil
 		}
+		loadingCmd := SendLoadingCmd()
 		cmd := getArtistTracks(m.UserTokenInfo.AccessToken, selectedItem.ID)
-		return m, cmd
+		m.MainViewMode = NormalMode
+		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultPlaylist {
 		if m.UserTokenInfo == nil {
@@ -354,8 +365,10 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			slog.Error("failed to cast the selected item to types.Artist")
 			return m, nil
 		}
+
+		loadingCmd := SendLoadingCmd()
 		cmd := getPlaylistItems(m.UserTokenInfo.AccessToken, selectedItem.ID)
-		return m, cmd
+		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultTrack {
 		if m.UserTokenInfo == nil {
@@ -478,9 +491,10 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 	case MainView:
 		if shift {
 			m.FocusedOn = SideView
-		} else {
+		} else if m.MainViewMode == SearchResultMode {
 			m.FocusedOn = SearchResultTrack
-			// m.FocusedOn = QueueList
+		} else {
+			m.FocusedOn = QueueList
 		}
 	case QueueList:
 		if shift {
@@ -559,4 +573,10 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 		cmds = append(cmds, cmd)
 	}
 	return *m, tea.Batch(cmds...)
+}
+
+func SendLoadingCmd() tea.Cmd {
+	return func() tea.Msg {
+		return types.SearchingMsg{}
+	}
 }

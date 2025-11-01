@@ -2,7 +2,7 @@ version: 2
 project_name: clispot
 env:
   - GO111MODULE=on
-  - CGO_ENABLED=0
+  - CGO_ENABLED=1
 before:
   hooks:
     - ./scripts/manpages.sh
@@ -19,7 +19,7 @@ builds:
       - amd64
       - arm64
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
 archives:
   -
     ids:

@@ -43,7 +43,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'
-          args: release --clean --skip-publish --config .goreleaser.yml
+          args: release --clean 
         env:
           GOOS: ${{ matrix.goos }}
           CGO_ENABLED: 1

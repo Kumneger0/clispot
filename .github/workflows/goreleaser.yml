@@ -10,17 +10,11 @@ permissions:
   packages: write
 
 jobs:
-  build:
+  build-linux:
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            deps: "pkg-config libasound2-dev gcc-aarch64-linux-gnu"
-          - os: macos-latest
-            goos: darwin
-            deps: ""
-    runs-on: ${{ matrix.os }}
+        goarch: [amd64, arm64]
 
     steps:
       - name: Checkout
@@ -33,19 +27,19 @@ jobs:
         with:
           go-version: 1.25.x
 
-      - name: Install platform dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install ALSA dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ${{ matrix.deps }}
+          sudo apt-get install -y pkg-config libasound2-dev gcc-aarch64-linux-gnu
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser (build only)
         uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'
-          args: release --clean 
+          args: release --clean --skip=publish --config .goreleaser.yml
         env:
-          GOOS: ${{ matrix.goos }}
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
@@ -54,13 +48,18 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.goos }}-artifacts
+          name: linux-${{ matrix.goarch }}-artifacts
           path: dist/
 
   publish:
-    needs: build
+    needs: build-linux
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -70,6 +69,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'
-          args: release --clean --config .goreleaser.yml --skip-build
+          args: release --clean --skip=build --config .goreleaser.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

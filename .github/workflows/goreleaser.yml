@@ -39,8 +39,6 @@ jobs:
           version: '~> v2'
           args: release --clean --config .goreleaser.yml
         env:
-          GOOS: linux
-          GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}

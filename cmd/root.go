@@ -2,11 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	"os/exec"
+	"path/filepath"
 
 	"log"
 	"log/slog"
 	"os"
 	"time"
+
+	logSetup "github.com/kumneger0/clispot/internal/logger"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -28,84 +32,7 @@ func newRootCmd(version string, spotifyClientID string, spotifyClientSecret stri
 		Use:   "clispot",
 		Short: "spotify music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			token, err := spotify.ReadUserCredentials()
-
-			if err != nil {
-				slog.Error(err.Error())
-				spotify.Authenticate(spotifyClientID, spotifyClientSecret)
-			}
-
-			if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-				token, err = spotify.RefreshToken(spotifyClientID, spotifyClientSecret, token.RefreshToken)
-				if err != nil {
-					slog.Error(err.Error())
-				}
-			}
-
-			featuredPlaylist, err := spotify.GetFeaturedPlaylist(token.AccessToken)
-
-			playListToRender := func() []types.Playlist {
-				if err == nil && featuredPlaylist != nil {
-					return featuredPlaylist.Playlists.Items
-				}
-				userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
-				if err != nil || userPlayList == nil {
-					slog.Error(err.Error())
-					fmt.Fprintln(os.Stdout, err)
-					return []types.Playlist{}
-				}
-				return userPlayList.Items
-			}()
-
-			ins, messageChan, err := mpris.GetDbusInstance()
-
-			if err != nil {
-				slog.Error(err.Error())
-			}
-
-			var items []list.Item
-			for _, item := range playListToRender {
-				items = append(items, item)
-			}
-
-			model := ui.Model{
-				UserTokenInfo: token,
-				FocusedOn:     ui.SideView,
-				DBusConn:      ins,
-				MainViewMode:  ui.NormalMode,
-			}
-
-			playlists := list.New(items, ui.CustomDelegate{Model: &model}, 10, 20)
-			playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
-
-			input := textinput.New()
-			input.Placeholder = "Search tracks, artists, albums..."
-			input.Prompt = "> "
-			input.CharLimit = 256
-
-			model.Search = input
-			musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
-
-			model.Playlist = playlists
-			model.SelectedPlayListItems = playlistItems
-			model.MusicQueueList = musicQueueList
-
-			defer ins.Conn.Close()
-
-			Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-
-			go func() {
-				for v := range *messageChan {
-					Program.Send(v)
-				}
-			}()
-
-			_, err = Program.Run()
-			if err != nil {
-				slog.Error(err.Error())
-				log.Fatal(err)
-			}
-			return nil
+			return runRoot(cmd, spotifyClientID, spotifyClientSecret)
 		},
 	}
 
@@ -115,8 +42,172 @@ func newRootCmd(version string, spotifyClientID string, spotifyClientSecret stri
 	return cmd
 }
 
+func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) error {
+	debugDir, err := cmd.Flags().GetString("debug-dir")
+
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	fileInfo, err := os.Stat(debugDir)
+
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(debugDir, 0777); err != nil {
+			fmt.Println("we have failed to create a dir to store the logs files could you try different dir")
+			os.Exit(1)
+		}
+	}
+
+	if !fileInfo.IsDir() {
+		fmt.Printf("the debug path %v you gave us is not a dir could u check again ", debugDir)
+		os.Exit(1)
+	}
+
+	logger := logSetup.Init(debugDir)
+	defer logger.Close()
+
+	err = doAllDepsInstalled()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+		return nil
+	}
+	token, err := spotify.ReadUserCredentials()
+
+	if err != nil {
+		slog.Error(err.Error())
+		token, _ = spotify.Authenticate(spotifyClientID, spotifyClientSecret)
+	}
+
+	if token == nil {
+		slog.Error("failed to get user token")
+		fmt.Println("we have failed to get your access token please open up an issue on our github page")
+		os.Exit(1)
+	}
+
+	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
+		token, err = spotify.RefreshToken(spotifyClientID, spotifyClientSecret, token.RefreshToken)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+	}
+
+	featuredPlaylist, err := spotify.GetFeaturedPlaylist(token.AccessToken)
+
+	playListToRender := func() []types.Playlist {
+		if err == nil && featuredPlaylist != nil {
+			return featuredPlaylist.Playlists.Items
+		}
+		userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
+		if err != nil || userPlayList == nil {
+			slog.Error(err.Error())
+			fmt.Fprintln(os.Stdout, err)
+			return []types.Playlist{}
+		}
+		return userPlayList.Items
+	}()
+
+	ins, messageChan, err := mpris.GetDbusInstance()
+
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
+	var items []list.Item
+	for _, item := range playListToRender {
+		items = append(items, item)
+	}
+
+	model := ui.Model{
+		GetUserToken: func() *types.UserTokenInfo {
+			token, err := validateToken(token, spotifyClientID, spotifyClientSecret)
+			if err != nil {
+				slog.Error(err.Error())
+				return nil
+			}
+			return token
+		},
+		FocusedOn:    ui.SideView,
+		DBusConn:     ins,
+		MainViewMode: ui.NormalMode,
+		UserArguments: &ui.UserArguments{
+			DebugPath: debugDir,
+		},
+	}
+
+	playlists := list.New(items, ui.CustomDelegate{Model: &model}, 10, 20)
+	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+
+	input := textinput.New()
+	input.Placeholder = "Search tracks, artists, albums..."
+	input.Prompt = "> "
+	input.CharLimit = 256
+
+	model.Search = input
+	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+
+	model.Playlist = playlists
+	model.SelectedPlayListItems = playlistItems
+	model.MusicQueueList = musicQueueList
+
+	defer ins.Conn.Close()
+
+	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	go func() {
+		for v := range *messageChan {
+			Program.Send(v)
+		}
+	}()
+
+	_, err = Program.Run()
+	if err != nil {
+		slog.Error(err.Error())
+		log.Fatal(err)
+	}
+	return nil
+}
+
+func validateToken(token *types.UserTokenInfo, spotifyClientID, spotifyClientSecret string) (*types.UserTokenInfo, error) {
+	if token.ExpiresAt > time.Now().Unix() {
+		return token, nil
+	}
+	if token.RefreshToken != "" {
+		token, err := spotify.RefreshToken(spotifyClientID, spotifyClientSecret, token.RefreshToken)
+		if err != nil {
+			slog.Error(err.Error())
+			return nil, err
+		}
+		return token, nil
+	}
+	//this means something went wrong re-authenticate
+	token, err := spotify.Authenticate(spotifyClientID, spotifyClientSecret)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+func doAllDepsInstalled() error {
+	toolNames := []string{"yt-dlp", "ffmpeg"}
+	var error error
+	for _, toolName := range toolNames {
+		_, err := exec.LookPath(toolName)
+		if err != nil {
+			error = fmt.Errorf("failed to find %v in the path have u installed it", toolName)
+			break
+		}
+	}
+	return error
+}
+
 func Execute(version string, spotifyClientID string, spotifyClientSecret string) error {
-	if err := newRootCmd(version, spotifyClientID, spotifyClientSecret).Execute(); err != nil {
+	cmd := newRootCmd(version, spotifyClientID, spotifyClientSecret)
+	userHomeDir, _ := os.UserHomeDir()
+	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
+	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
+	if err := cmd.Execute(); err != nil {
 		return fmt.Errorf("error executing root command: %w", err)
 	}
 	return nil

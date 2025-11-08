@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 
 	"github.com/ebitengine/oto/v3"
@@ -52,7 +53,7 @@ func (b *byteCounterReader) CurrentSeconds() float64 {
 	return float64(b.total) / bytesPerSecond
 }
 
-func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, shouldWait bool) (*Player, error) {
+func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, shouldWait bool, logPathName string) (*Player, error) {
 	searchQuery := "ytsearch:" + trackName
 
 	if len(artistNames) > 0 {
@@ -78,8 +79,8 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, s
 		"pipe:1",
 	)
 
-	ytStderr, _ := os.Create("ytStdErr.debug.txt")
-	ffStderr, _ := os.Create("ffStdErr.debug.txt")
+	ytStderr, _ := os.Create(filepath.Join(logPathName, "ytstderr.log"))
+	ffStderr, _ := os.Create(filepath.Join(logPathName, "ffstderr.log"))
 
 	ytOut, _ := yt.StdoutPipe()
 

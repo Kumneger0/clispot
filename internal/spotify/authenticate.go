@@ -34,7 +34,7 @@ type Secret struct {
 	ClientSecret string
 }
 
-func Authenticate(spotifyClientID, spotifyClientSecret string) {
+func Authenticate(spotifyClientID, spotifyClientSecret string) (*types.UserTokenInfo, error) {
 	var state = generateRandomString(16)
 	logAuthenticationURL(state, spotifyClientID)
 
@@ -43,6 +43,8 @@ func Authenticate(spotifyClientID, spotifyClientSecret string) {
 		Addr:    ":9292",
 		Handler: mux,
 	}
+
+	var userToken *types.UserTokenInfo
 
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		error := r.URL.Query().Get("error")
@@ -63,12 +65,13 @@ func Authenticate(spotifyClientID, spotifyClientSecret string) {
 		formData.Set("redirect_uri", redirectURL)
 		formData.Set("grant_type", "authorization_code")
 
-		_, err := getToken(formData.Encode(), spotifyClientID, spotifyClientSecret)
+		token, err := getToken(formData.Encode(), spotifyClientID, spotifyClientSecret)
 		if err != nil {
 			slog.Error(err.Error())
 			fmt.Fprintf(w, "Error: %s\n", err)
 			return
 		}
+		userToken = token
 		fmt.Fprintf(w, "go back to your terminal")
 		go func() {
 			server.Close()
@@ -83,6 +86,7 @@ func Authenticate(spotifyClientID, spotifyClientSecret string) {
 		}
 	})
 	wg.Wait()
+	return userToken, nil
 }
 
 func generateRandomString(length int) string {

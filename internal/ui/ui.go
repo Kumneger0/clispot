@@ -47,9 +47,12 @@ type SpotifySearchResult struct {
 	Tracks, Artists, Albums, Playlists list.Model
 }
 
+type UserArguments struct {
+	DebugPath string
+}
+
 type Model struct {
 	Playlist              list.Model
-	UserTokenInfo         *types.UserTokenInfo
 	SelectedPlayListItems list.Model
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
@@ -69,6 +72,8 @@ type Model struct {
 	SearchQuery     string
 	IsSearchLoading bool
 	SearchResult    *SpotifySearchResult
+	GetUserToken    func() *types.UserTokenInfo
+	*UserArguments
 }
 
 type Instance struct {
@@ -78,9 +83,10 @@ type Instance struct {
 
 func (m Model) Init() tea.Cmd {
 	var cmd tea.Cmd
-	if m.UserTokenInfo != nil {
+	userTokenInfo := m.GetUserToken()
+	if userTokenInfo != nil {
 		cmd = func() tea.Msg {
-			followedArtist, err := spotify.GetFollowedArtist(m.UserTokenInfo.AccessToken)
+			followedArtist, err := spotify.GetFollowedArtist(userTokenInfo.AccessToken)
 			if err != nil {
 				return nil
 			}

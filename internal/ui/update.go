@@ -288,30 +288,6 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 }
 
 func (m Model) handleEnterKey() (Model, tea.Cmd) {
-	if m.FocusedOn == SearchBar {
-		if m.UserTokenInfo == nil {
-			//this should't happen but i need to show some kind of error message
-			//TODO: FIND A WAY TO SHOW  ERROR MESSAGE
-			return m, nil
-		}
-		query := m.Search.Value()
-
-		if query == m.SearchQuery && m.SearchResult != nil {
-			m.MainViewMode = SearchResultMode
-			return m, nil
-		}
-
-		loadingCmd := SendLoadingCmd()
-		searchingCmd := func() tea.Msg {
-			searchResult, err := spotify.Search(m.UserTokenInfo.AccessToken, query)
-			return types.SpotifySearchResultMsg{
-				Result: searchResult,
-				Err:    err,
-			}
-		}
-		m.SearchQuery = query
-		return m, tea.Batch(loadingCmd, searchingCmd)
-	}
 	if m.FocusedOn == MainView || m.FocusedOn == QueueList {
 		listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)
 		selectedMusic, ok := listItemToChooseMusicFrom.SelectedItem().(types.PlaylistTrackObject)
@@ -324,8 +300,34 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic)
 	}
+	userToken := m.GetUserToken()
+
+	if userToken == nil {
+		slog.Error("nil user token")
+		return m, nil
+	}
+
+	if m.FocusedOn == SearchBar {
+		query := m.Search.Value()
+		if query == m.SearchQuery && m.SearchResult != nil {
+			m.MainViewMode = SearchResultMode
+			return m, nil
+		}
+
+		loadingCmd := SendLoadingCmd()
+		searchingCmd := func() tea.Msg {
+			searchResult, err := spotify.Search(userToken.AccessToken, query)
+			return types.SpotifySearchResultMsg{
+				Result: searchResult,
+				Err:    err,
+			}
+		}
+		m.SearchQuery = query
+		return m, tea.Batch(loadingCmd, searchingCmd)
+	}
+
 	if m.FocusedOn == SideView {
-		if m.UserTokenInfo == nil {
+		if userToken == nil {
 			slog.Error("failed to get user access token")
 			return m, nil
 		}
@@ -333,33 +335,25 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		loadingCmd := SendLoadingCmd()
 		switch selectedItem := m.Playlist.SelectedItem().(type) {
 		case types.Playlist:
-			cmd := getPlaylistItems(m.UserTokenInfo.AccessToken, selectedItem.ID)
+			cmd := getPlaylistItems(userToken.AccessToken, selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
 		case types.Artist:
-			cmd := getArtistTracks(m.UserTokenInfo.AccessToken, selectedItem.ID)
+			cmd := getArtistTracks(userToken.AccessToken, selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
 		}
 	}
 	if m.FocusedOn == SearchResultArtist {
-		if m.UserTokenInfo == nil {
-			slog.Error("failed to get user access token")
-			return m, nil
-		}
 		selectedItem, ok := m.SearchResult.Artists.SelectedItem().(types.Artist)
 		if !ok {
 			slog.Error("failed to cast the selected item to types.Artist")
 			return m, nil
 		}
 		loadingCmd := SendLoadingCmd()
-		cmd := getArtistTracks(m.UserTokenInfo.AccessToken, selectedItem.ID)
+		cmd := getArtistTracks(userToken.AccessToken, selectedItem.ID)
 		m.MainViewMode = NormalMode
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultPlaylist {
-		if m.UserTokenInfo == nil {
-			slog.Error("failed to get user access token")
-			return m, nil
-		}
 		selectedItem, ok := m.SearchResult.Playlists.SelectedItem().(types.Playlist)
 		if !ok {
 			slog.Error("failed to cast the selected item to types.Artist")
@@ -367,14 +361,10 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		}
 
 		loadingCmd := SendLoadingCmd()
-		cmd := getPlaylistItems(m.UserTokenInfo.AccessToken, selectedItem.ID)
+		cmd := getPlaylistItems(userToken.AccessToken, selectedItem.ID)
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultTrack {
-		if m.UserTokenInfo == nil {
-			slog.Error("failed to get user access token")
-			return m, nil
-		}
 		selectedMusic, ok := m.SearchResult.Tracks.SelectedItem().(types.PlaylistTrackObject)
 		if !ok {
 			slog.Error("failed to cast the selected item to types.Artist")
@@ -431,7 +421,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		}
 		//TODO:Show error message
 	}
-	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, m.PlayerProcess == nil)
+	debugFilePath := m.DebugPath
+	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, m.PlayerProcess == nil, debugFilePath)
 	if err != nil {
 		slog.Error(err.Error())
 		//TODO: implement some kind of way to show the error message

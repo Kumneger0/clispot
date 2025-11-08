@@ -2,14 +2,13 @@ package logger
 
 import (
 	"log/slog"
-	"os"
 	"path/filepath"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func Init() *lumberjack.Logger {
-	logFilePath := filepath.Join(os.TempDir(), "clispot.log")
+func Init(dir string) *lumberjack.Logger {
+	logFilePath := filepath.Join(dir, "clispot.log")
 
 	rotator := &lumberjack.Logger{
 		Filename:   logFilePath,

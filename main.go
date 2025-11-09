@@ -13,7 +13,6 @@ var (
 )
 
 func main() {
-	slog.Info("starting the application")
 	err := cmd.Execute(version, spotifyClientID, spotifyClientSecret)
 	if err != nil {
 		slog.Error(err.Error())

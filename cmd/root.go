@@ -69,6 +69,8 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 	logger := logSetup.Init(debugDir)
 	defer logger.Close()
 
+	slog.Info("starting the application")
+
 	err = doAllDepsInstalled()
 	if err != nil {
 		fmt.Println(err)
@@ -93,7 +95,7 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 			slog.Error(err.Error())
 			userHomeDir, _ := os.UserHomeDir()
 			clispotLogDir := filepath.Join(userHomeDir, ".clispot")
-			fmt.Printf("we have failed to refresh ur token could you delete clispot dir by using rm -rf %v", clispotLogDir)
+			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotLogDir)
 			os.Exit(1)
 		}
 	}

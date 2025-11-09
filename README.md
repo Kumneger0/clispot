@@ -21,7 +21,7 @@ For detailed usage instructions, installation guide, keyboard shortcuts, and mor
   - [ ] view personalized "For You" recommendations
 - [x] spotify library browsing
   - [ ] liked songs
-  - [ ] saved albumsit
+  - [ ] saved albums
   - [x] followed artists 
   - [x] saved playlist
 

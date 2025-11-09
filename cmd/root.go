@@ -50,17 +50,19 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 		os.Exit(1)
 	}
 
-	fileInfo, err := os.Stat(debugDir)
+	if err := os.MkdirAll(debugDir, 0755); err != nil {
+		fmt.Printf("failed to create debug directory '%s': %v\n", debugDir, err)
+		os.Exit(1)
+	}
 
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(debugDir, 0777); err != nil {
-			fmt.Println("we have failed to create a dir to store the logs files could you try different dir")
-			os.Exit(1)
-		}
+	fileInfo, err := os.Stat(debugDir)
+	if err != nil {
+		fmt.Printf("failed to stat debug directory '%s': %v\n", debugDir, err)
+		os.Exit(1)
 	}
 
 	if !fileInfo.IsDir() {
-		fmt.Printf("the debug path %v you gave us is not a dir could u check again ", debugDir)
+		fmt.Printf("the debug path '%v' is not a directory\n", debugDir)
 		os.Exit(1)
 	}
 
@@ -85,16 +87,18 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 		fmt.Println("we have failed to get your access token please open up an issue on our github page")
 		os.Exit(1)
 	}
-
 	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-		token, err = spotify.RefreshToken(spotifyClientID, spotifyClientSecret, token.RefreshToken)
+		token, err = spotify.RefreshToken(token.RefreshToken, spotifyClientID, spotifyClientSecret)
 		if err != nil {
 			slog.Error(err.Error())
+			userHomeDir, _ := os.UserHomeDir()
+			clispotLogDir := filepath.Join(userHomeDir, ".clispot")
+			fmt.Printf("we have failed to refresh ur token could you delete clispot dir by using rm -rf %v", clispotLogDir)
+			os.Exit(1)
 		}
 	}
 
 	featuredPlaylist, err := spotify.GetFeaturedPlaylist(token.AccessToken)
-
 	playListToRender := func() []types.Playlist {
 		if err == nil && featuredPlaylist != nil {
 			return featuredPlaylist.Playlists.Items
@@ -151,11 +155,12 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = musicQueueList
 
-	defer ins.Conn.Close()
-
 	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	go func() {
+		if messageChan == nil {
+			return
+		}
 		for v := range *messageChan {
 			Program.Send(v)
 		}
@@ -165,6 +170,10 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 	if err != nil {
 		slog.Error(err.Error())
 		log.Fatal(err)
+	}
+
+	if ins != nil {
+		ins.Conn.Close()
 	}
 	return nil
 }

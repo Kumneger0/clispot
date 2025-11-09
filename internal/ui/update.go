@@ -253,24 +253,28 @@ func (m Model) handleMusicPausePlay() (Model, tea.Cmd) {
 	if m.PlayerProcess.OtoPlayer.IsPlaying() {
 		m.PlayerProcess.OtoPlayer.Pause()
 
-		dbusErr := m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
-			"PlaybackStatus",
-			dbus.MakeVariant("Paused"),
-		)
-		if dbusErr != nil {
-			slog.Error(dbusErr.Error())
+		if m.DBusConn != nil {
+			dbusErr := m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
+				"PlaybackStatus",
+				dbus.MakeVariant("Paused"),
+			)
+			if dbusErr != nil {
+				slog.Error(dbusErr.Error())
+			}
 		}
 
 		return m, nil
 	}
 
-	dbusErr := m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
-		"PlaybackStatus",
-		dbus.MakeVariant("Playing"),
-	)
+	if m.DBusConn != nil {
+		dbusErr := m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
+			"PlaybackStatus",
+			dbus.MakeVariant("Playing"),
+		)
 
-	if dbusErr != nil {
-		slog.Error(dbusErr.Error())
+		if dbusErr != nil {
+			slog.Error(dbusErr.Error())
+		}
 	}
 
 	m.PlayerProcess.OtoPlayer.Play()
@@ -446,24 +450,27 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		title:      selectedMusic.Track.Name,
 	})
 
-	dbusErr := m.DBusConn.Props.Set(
-		"org.mpris.MediaPlayer2.Player",
-		"Metadata",
-		dbus.MakeVariant(metadata),
-	)
+	if m.DBusConn != nil {
+		dbusErr := m.DBusConn.Props.Set(
+			"org.mpris.MediaPlayer2.Player",
+			"Metadata",
+			dbus.MakeVariant(metadata),
+		)
 
-	if dbusErr != nil {
-		log.Println(dbusErr, metadata)
+		if dbusErr != nil {
+			log.Println(dbusErr, metadata)
+		}
+
+		dbusErr = m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
+			"PlaybackStatus",
+			dbus.MakeVariant("Playing"),
+		)
+
+		if dbusErr != nil {
+			log.Println(dbusErr, metadata)
+		}
 	}
 
-	dbusErr = m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
-		"PlaybackStatus",
-		dbus.MakeVariant("Playing"),
-	)
-
-	if dbusErr != nil {
-		log.Println(dbusErr, metadata)
-	}
 	m.PlayerProcess = process
 	m.SelectedTrack = &selectedMusic
 	return m, cmd()

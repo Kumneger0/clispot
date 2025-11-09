@@ -3,6 +3,7 @@ package mpris
 import (
 	"errors"
 	"log/slog"
+	"runtime"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
@@ -78,6 +79,9 @@ func (m *MediaPlayer2) PlayPause() *dbus.Error {
 }
 
 func GetDbusInstance() (*ui.Instance, *chan types.DBusMessage, error) {
+	if runtime.GOOS != "linux" {
+		return nil, nil, nil
+	}
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		slog.Error(err.Error())

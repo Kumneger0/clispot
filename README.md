@@ -9,11 +9,11 @@ For detailed usage instructions, installation guide, keyboard shortcuts, and mor
 ## TODO
 - [ ] like/unlike Song
 - [ ] add to playlist
-- [ ] advanced search
-  - [ ] filter search by type (track, album, artist)
-  - [ ] jump to artist/album view from results
+- [x] advanced search
+  - [x] filter search by type (track, album, artist)
+  - [x] jump to artist/playlist view from results
 - [ ] queue Management
-  - [ ] view track queue
+  - [x] view track queue
   - [ ] reorder queue
   - [ ] remove track from queue
 - [ ] spotify Recommendations
@@ -21,7 +21,7 @@ For detailed usage instructions, installation guide, keyboard shortcuts, and mor
   - [ ] view personalized "For You" recommendations
 - [x] spotify library browsing
   - [ ] liked songs
-  - [ ] saved albums
+  - [ ] saved albumsit
   - [x] followed artists 
   - [x] saved playlist
 

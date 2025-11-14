@@ -185,7 +185,7 @@ func validateToken(token *types.UserTokenInfo, spotifyClientID, spotifyClientSec
 		return token, nil
 	}
 	if token.RefreshToken != "" {
-		token, err := spotify.RefreshToken(spotifyClientID, spotifyClientSecret, token.RefreshToken)
+		token, err := spotify.RefreshToken(token.RefreshToken, spotifyClientID, spotifyClientSecret)
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err

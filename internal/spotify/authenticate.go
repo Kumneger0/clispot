@@ -186,6 +186,7 @@ func RefreshToken(refreshToken string, spotifyClientID, spotifyClientSecret stri
 
 	token, err := getToken(formData.Encode(), spotifyClientID, spotifyClientSecret)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 
@@ -195,6 +196,7 @@ func RefreshToken(refreshToken string, spotifyClientID, spotifyClientSecret stri
 
 	err = saveUserCredentials(*token)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 

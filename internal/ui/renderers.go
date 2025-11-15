@@ -31,7 +31,7 @@ func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 }
 
 func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	var title string
+	var title string = item.FilterValue()
 	var isSelected bool
 	switch item := item.(type) {
 	case types.PlaylistTrackObject:

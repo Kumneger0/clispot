@@ -142,7 +142,11 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 		},
 	}
 
-	playlists := list.New(items, ui.CustomDelegate{Model: &model}, 10, 20)
+	userSavedTracksListItem := spotify.UserSavedTracksListItem{
+		Name: "Saved Tracks",
+	}
+
+	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 
 	input := textinput.New()

@@ -1,8 +1,10 @@
 package spotify
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -10,6 +12,18 @@ import (
 
 	"github.com/kumneger0/clispot/internal/types"
 )
+
+type UserSavedTracksListItem struct {
+	Name string
+}
+
+func (userSavedTracksListItem UserSavedTracksListItem) Title() string {
+	return userSavedTracksListItem.Name
+}
+
+func (userSavedTracksListItem UserSavedTracksListItem) FilterValue() string {
+	return userSavedTracksListItem.Name
+}
 
 type UserTopItem string
 
@@ -29,6 +43,7 @@ const (
 	userProfileBase     = "https://api.spotify.com/v1/me/"
 	artistsURL          = "https://api.spotify.com/v1/artists/"
 	followedArtistURL   = "https://api.spotify.com/v1/me/following?type=artist"
+	userSavedTrackURL   = "https://api.spotify.com/v1/me/tracks"
 	userTopItemsBaseURL = "https://api.spotify.com/v1/me/top/"
 	searchBaseURL       = "https://api.spotify.com/v1/search"
 )
@@ -44,18 +59,23 @@ type APIURLS interface {
 	GetUserTopItems(itemType UserTopItem) string
 	GetArtistsTopTrackURL(id string) string
 	GetSearchURL(q string) string
+	GetUserSavedTrackURL() string
 }
 
 type apiURL struct{}
 
 var APIURL APIURLS = apiURL{}
 
+func (a apiURL) GetUserSavedTrackURL() string {
+	return userSavedTrackURL
+}
+
 func (a apiURL) GetPlaylistBaseURL() string {
 	return playlistBase
 }
 func (a apiURL) GetSearchURL(q string) string {
 	searchType := "track,artist,playlist"
-	limit := 20
+	limit := 30
 	market := "US"
 	offset := 0
 	searchParams := url.Values{}
@@ -70,6 +90,7 @@ func (a apiURL) GetSearchURL(q string) string {
 func (a apiURL) GetFeaturedPlayListURL() string {
 	return featuredPlaylistBase
 }
+
 func (a apiURL) GetTrackBaseURL() string {
 	return tracksBase
 }
@@ -102,8 +123,8 @@ type Decoder struct {
 	Track            types.SpotifyUser
 }
 
-func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader string) (*http.Response, error) {
-	req, err := http.NewRequest(method, urlToMakeRequestTo, nil)
+func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, urlToMakeRequestTo, body)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -112,9 +133,64 @@ func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader s
 	return http.DefaultClient.Do(req)
 }
 
+type SaveTrackForCurrentUserRequest struct {
+	IDs []string `json:"ids"`
+}
+
+func SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemove bool) error {
+	authorizationHeader := "Bearer " + accessToken
+
+	reqBody := SaveTrackForCurrentUserRequest{
+		IDs: trackIDs,
+	}
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+	body := bytes.NewReader(reqBodyBytes)
+
+	var method string
+	if isRemove {
+		method = "DELETE"
+	} else {
+		method = "PUT"
+	}
+
+	resp, err := makeRequest(method, userSavedTrackURL, authorizationHeader, body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error) {
+	authorizationHeader := "Bearer " + accessToken
+	params := url.Values{}
+	params.Add("limit", "30")
+	resp, err := makeRequest("GET", APIURL.GetUserSavedTrackURL()+"?"+params.Encode(), authorizationHeader, nil)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var userSavedTracks *types.UserSavedTracks
+	if err := json.NewDecoder(resp.Body).Decode(&userSavedTracks); err != nil {
+		return nil, err
+	}
+
+	return userSavedTracks, nil
+}
+
 func Search(accessToken string, query string) (*types.SearchResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetSearchURL(query), authorizationHeader)
+	resp, err := makeRequest("GET", APIURL.GetSearchURL(query), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -132,7 +208,7 @@ func Search(accessToken string, query string) (*types.SearchResponse, error) {
 
 func GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistTopTracks, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetArtistsTopTrackURL(artistID), authorizationHeader)
+	resp, err := makeRequest("GET", APIURL.GetArtistsTopTrackURL(artistID), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -150,7 +226,7 @@ func GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistTo
 
 func GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetUserTopItems(track), authorizationHeader)
+	resp, err := makeRequest("GET", APIURL.GetUserTopItems(track), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -168,7 +244,7 @@ func GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
 
 func GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetFollowedArtistURL(), authorizationHeader)
+	resp, err := makeRequest("GET", APIURL.GetFollowedArtistURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -186,7 +262,7 @@ func GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, e
 
 func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", playlistBase, authorizationHeader)
+	resp, err := makeRequest("GET", playlistBase, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -204,7 +280,7 @@ func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) 
 
 func GetFeaturedPlaylist(accessToken string) (*types.FeaturedPlaylistsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", featuredPlaylistBase, authorizationHeader)
+	resp, err := makeRequest("GET", featuredPlaylistBase, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -227,7 +303,7 @@ func GetFeaturedPlaylist(accessToken string) (*types.FeaturedPlaylistsResponse, 
 func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 	playlistItemsURL := APIURL.GetPlaylistItems(playlistID)
-	resp, err := makeRequest("GET", playlistItemsURL, authorizationHeader)
+	resp, err := makeRequest("GET", playlistItemsURL, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -249,7 +325,7 @@ func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistIte
 
 func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", userProfileBase, authorizationHeader)
+	resp, err := makeRequest("GET", userProfileBase, authorizationHeader, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -267,9 +343,9 @@ func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	return &userProfile, nil
 }
 
-func GetTrack(trackID string, accessToken string) (*types.SpotifyTrack, error) {
+func GetTrack(trackID string, accessToken string) (*types.Track, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", tracksBase, authorizationHeader)
+	resp, err := makeRequest("GET", tracksBase, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -280,7 +356,7 @@ func GetTrack(trackID string, accessToken string) (*types.SpotifyTrack, error) {
 		slog.Error(errMsg)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-	var track types.SpotifyTrack
+	var track types.Track
 	if err := json.NewDecoder(resp.Body).Decode(&track); err != nil {
 		slog.Error(err.Error())
 		return nil, err

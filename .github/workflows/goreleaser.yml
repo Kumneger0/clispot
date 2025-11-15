@@ -33,11 +33,11 @@ jobs:
           sudo apt-get install -y pkg-config libasound2-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
 
-      - name: Run GoReleaser (build only)
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           version: '~> v2'
-          args: release --clean --config .goreleaser.yml
+          args: release --clean
         env:
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

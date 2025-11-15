@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"strings"
@@ -197,6 +198,40 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
+	case "s":
+		if m.SelectedTrack != nil {
+			userToken := m.GetUserToken()
+			if userToken == nil {
+				slog.Error("m.GetUserToken is return nil ")
+				return m, nil
+			}
+			cmd := func() tea.Msg {
+				err := spotify.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.ID}, false)
+				if err != nil {
+					slog.Error(err.Error())
+				}
+				//TODO: show some kind of success indicator
+				return nil
+			}
+			return m, cmd
+		}
+	case "d":
+		if m.SelectedTrack != nil {
+			userToken := m.GetUserToken()
+			if userToken == nil {
+				slog.Error("m.GetUserToken is return nil ")
+				return m, nil
+			}
+			cmd := func() tea.Msg {
+				err := spotify.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.ID}, true)
+				if err != nil {
+					slog.Error(err.Error())
+				}
+				//TODO: show some kind of success indicator
+				return nil
+			}
+			return m, cmd
+		}
 	case " ":
 		return m.handleMusicPausePlay()
 	case "b":
@@ -344,6 +379,9 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		case types.Artist:
 			cmd := getArtistTracks(userToken.AccessToken, selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
+		case spotify.UserSavedTracksListItem:
+			cmd := getUserSavedTracks(userToken.AccessToken)
+			return m, tea.Batch(loadingCmd, cmd)
 		}
 	}
 	if m.FocusedOn == SearchResultArtist {
@@ -382,6 +420,13 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 func getArtistTracks(accessToken, artistID string) tea.Cmd {
 	return func() tea.Msg {
 		artistSongs, err := spotify.GetArtistsTopTrackURL(accessToken, artistID)
+		if err != nil {
+			slog.Error(err.Error())
+			return types.UpdatePlaylistMsg{
+				Playlist: nil,
+				Err:      err,
+			}
+		}
 		var tracks []*types.PlaylistTrackObject
 		for _, track := range artistSongs.Tracks {
 			tracks = append(tracks, &types.PlaylistTrackObject{
@@ -389,6 +434,33 @@ func getArtistTracks(accessToken, artistID string) tea.Cmd {
 				AddedBy: nil,
 				IsLocal: false,
 				Track:   track,
+			})
+		}
+		return types.UpdatePlaylistMsg{
+			Playlist: tracks,
+			Err:      err,
+		}
+	}
+}
+
+func getUserSavedTracks(accessToken string) tea.Cmd {
+	return func() tea.Msg {
+		savedTracks, err := spotify.GetUserSavedTracks(accessToken)
+		if err != nil {
+			fmt.Println("err", err.Error())
+			slog.Error(err.Error())
+			return types.UpdatePlaylistMsg{
+				Playlist: nil,
+				Err:      err,
+			}
+		}
+		var tracks []*types.PlaylistTrackObject
+		for _, track := range savedTracks.Items {
+			tracks = append(tracks, &types.PlaylistTrackObject{
+				AddedAt: "",
+				AddedBy: nil,
+				IsLocal: false,
+				Track:   track.Track,
 			})
 		}
 		return types.UpdatePlaylistMsg{

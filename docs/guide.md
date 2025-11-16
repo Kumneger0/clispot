@@ -1,10 +1,9 @@
 # clispot User Guide
 
-**clispot** is a terminal-based Spotify client that lets you browse and discover music from your Spotify library and play it through YouTube. Perfect for keyboard-driven workflows and terminal enthusiasts.
+**clispot** is a terminal-based Spotify client that lets you browse and discover music from your Spotify library and play it through YouTube
 
 ## Table of Contents
 
-- [Overview](#overview)
 - [Features](#features)
   - [Current Features](#current-features)
   - [Technical Details](#technical-details)
@@ -29,10 +28,6 @@
   - [MPRIS Integration](#mpris-integration)
 - [Contributing](#contributing)
 - [License](#license)
-
-## Overview
-
-clispot combines Spotify's music discovery capabilities with YouTube's vast audio library. You browse playlists, artists, and search using Spotify's API, but playback happens through YouTube (via `yt-dlp`). This gives you access to Spotify's metadata and recommendations while using YouTube for actual audio playback.
 
 ## Features
 
@@ -77,9 +72,9 @@ clispot combines Spotify's music discovery capabilities with YouTube's vast audi
 
 ### From GitHub Releases
 
-Download the latest release from the [GitHub releases page](https://github.com/kumneger0/clispot/releases). **Note:** Pre-built binaries are currently only available for Linux. Extract the archive for your architecture and place the `clispot` executable in a directory in your PATH (e.g., `/usr/local/bin`).
+Download the latest release from the [GitHub releases page](https://github.com/kumneger0/clispot/releases). **Note:** Pre-built binaries are currently only available for Linux AMD64 architectures. Extract the archive for your architecture and place the `clispot` executable in a directory in your PATH (e.g., `/usr/local/bin`).
 
-For other operating systems, please build from source (see [Building from Source](#building-from-source)).
+For other operating systems, please build from source (see [Building from Source](install.md)).
 
 ### Building from Source
 
@@ -177,6 +172,13 @@ clispot uses a three-panel layout:
 4. Results appear in three columns: Tracks, Artists, Playlists
 5. Use `Tab` to navigate between result columns
 
+**Liking and Unliking Songs:**
+* `l` - Like or unlike a song. Liked songs can be found in the "Liked Songs" playlist in the sidebar.
+
+**Managing the Queue:**
+* `a` - Add a song to the queue.
+* `d` - Remove a song from the queue.
+
 **Playing Music:**
 * `Enter` (when focused on):
   * **Sidebar:** Load playlist/artist tracks into main view
@@ -203,6 +205,9 @@ clispot uses a three-panel layout:
 | `Ctrl+K` | Focus search bar |
 | `j` / `↓` | Move down in list |
 | `k` / `↑` | Move up in list |
+| `l` | Like/Unlike a song |
+| `a` | Add song to queue |
+| `d` | Remove song from queue |
 | `Enter` | Context-dependent action (play/load) |
 | `Space` | Play/pause current track |
 | `n` | Next track |

@@ -9,7 +9,7 @@ help: ## list makefile targets
 .PHONY: build
 build: ## build golang binary with embedded JS backend
 	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags)" -o $(projectname)
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.spotifyClientID=$(SPOTIFY_CLIENT_ID) -X main.spotifyClientSecret=$(SPOTIFY_CLIENT_SECRET)" -o $(projectname)
 
 .PHONY: install
 install: build ## install binary to /usr/local/bin

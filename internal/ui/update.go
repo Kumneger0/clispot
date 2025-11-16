@@ -200,6 +200,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
+	case "a":
+		return m.addMusicToQueue()
 	case "r":
 		if m.FocusedOn == QueueList {
 			if len(m.MusicQueueList.Items()) > 0 {
@@ -276,6 +278,38 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 	}
 	m.MusicQueueList.Select(nextTrackIndex)
 	return m.PlaySelectedMusic(musicToPlay)
+}
+
+func (m Model) addMusicToQueue() (Model, tea.Cmd) {
+	var itemToAdd list.Item
+	currentlyPlayingTrackID := m.SelectedTrack.Track.Track.ID
+	if m.FocusedOn == MainView && m.MainViewMode == NormalMode {
+		itemToAdd = m.SelectedPlayListItems.SelectedItem()
+	} else if m.FocusedOn == SearchResultTrack && m.MainViewMode == SearchResultMode {
+		itemToAdd = m.SearchResult.Tracks.SelectedItem()
+	} else {
+		return m, nil
+	}
+
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+		currentlyPlayingTrackID = m.SelectedTrack.Track.Track.ID
+	}
+
+	var currentlyPlayingTrackIndex int
+	for index, item := range m.MusicQueueList.Items() {
+		playlistTrackObject, ok := item.(types.PlaylistTrackObject)
+		if !ok {
+			continue
+		}
+		if playlistTrackObject.Track.ID == currentlyPlayingTrackID {
+			currentlyPlayingTrackIndex = index
+		}
+	}
+
+	var itemsAfterCurrentlyPlayingTrack = m.MusicQueueList.Items()[currentlyPlayingTrackIndex+1:]
+	var itemsBeforeCurrentlyPlayingTrack = m.MusicQueueList.Items()[:currentlyPlayingTrackIndex+1]
+	cmd := m.MusicQueueList.SetItems(append(itemsBeforeCurrentlyPlayingTrack, append([]list.Item{itemToAdd}, itemsAfterCurrentlyPlayingTrack...)...))
+	return m, cmd
 }
 
 func (m Model) handleMusicPausePlay() (Model, tea.Cmd) {

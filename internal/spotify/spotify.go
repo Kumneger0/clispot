@@ -35,8 +35,6 @@ const (
 const (
 	//playlist base url
 	playlistBase = "https://api.spotify.com/v1/me/playlists/"
-	//featured playlist endpoint
-	featuredPlaylistBase = "https://api.spotify.com/v1/browse/featured-playlists"
 	//tracks base url
 	tracksBase = "https://api.spotify.com/v1/tracks/"
 	//user profile base url
@@ -54,7 +52,6 @@ var (
 
 type APIURLS interface {
 	GetPlaylistBaseURL() string
-	GetFeaturedPlayListURL() string
 	GetTrackBaseURL() string
 	GetUserProfileBaseURL() string
 	GetPlaylistItems(playlistID string) string
@@ -94,10 +91,6 @@ func (a apiURL) GetSearchURL(q string) string {
 	searchParams.Add("market", market)
 	searchParams.Add("offset", strconv.Itoa(offset))
 	return searchBaseURL + "?" + searchParams.Encode()
-}
-
-func (a apiURL) GetFeaturedPlayListURL() string {
-	return featuredPlaylistBase
 }
 
 func (a apiURL) GetTrackBaseURL() string {
@@ -151,11 +144,6 @@ func CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	// fulldata, err := io.ReadAll(resp.Body)
-
-	fmt.Println("full data", resp.StatusCode)
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
@@ -311,28 +299,6 @@ func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) 
 		return nil, err
 	}
 	return playlists, nil
-}
-
-func GetFeaturedPlaylist(accessToken string) (*types.FeaturedPlaylistsResponse, error) {
-	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", featuredPlaylistBase, authorizationHeader, nil)
-	if err != nil {
-		slog.Error(err.Error())
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("unexpected status code: %d", resp.StatusCode)
-		slog.Error(errMsg)
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-	var featuredPlaylist *types.FeaturedPlaylistsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&featuredPlaylist); err != nil {
-		slog.Error(err.Error())
-		return nil, err
-	}
-	return featuredPlaylist, nil
 }
 
 func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistItemsResponse, error) {

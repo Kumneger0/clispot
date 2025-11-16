@@ -1,5 +1,5 @@
 # clispot
- 
+
 listen to your favorite spotify songs right from your terminal
 
 ## 📖 Documentation
@@ -7,6 +7,7 @@ listen to your favorite spotify songs right from your terminal
 For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [User Guide](docs/guide.md).
 
 ## TODO
+
 - [x] like/unlike Song
 - [ ] add to playlist
 - [x] advanced search
@@ -15,15 +16,11 @@ For detailed usage instructions, installation guide, keyboard shortcuts, and mor
 - [x] queue Management
   - [x] view track queue
   - [ ] remove track from queue
-- [ ] spotify Recommendations
-  - [ ] get recommendations based on current track
-  - [ ] view personalized "For You" recommendations
 - [x] spotify library browsing
   - [x] liked songs
   - [ ] saved albums
-  - [x] followed artists 
+  - [x] followed artists
   - [x] saved playlist
-
 
 ## Demo
 
@@ -44,4 +41,3 @@ We are committed to providing a welcoming and inclusive experience for everyone.
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-

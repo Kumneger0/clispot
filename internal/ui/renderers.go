@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 )
 
@@ -31,7 +32,7 @@ func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 }
 
 func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	var title string = item.FilterValue()
+	var title string
 	var isSelected bool
 	switch item := item.(type) {
 	case types.PlaylistTrackObject:
@@ -49,6 +50,8 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		if d.Model != nil {
 			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
 		}
+	case spotify.UserSavedTracksListItem:
+		title = item.FilterValue()
 	default:
 	}
 	str := lipgloss.NewStyle().Render(title)

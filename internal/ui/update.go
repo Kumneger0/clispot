@@ -200,6 +200,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
+	case "r":
+		if m.FocusedOn == QueueList {
+			if len(m.MusicQueueList.Items()) > 0 {
+				m.MusicQueueList.RemoveItem(m.MusicQueueList.GlobalIndex())
+			}
+		}
 	case "l":
 		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 			userToken := m.GetUserToken()
@@ -326,7 +332,12 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
 			return m, nil
 		}
-		m.MusicQueueList.SetItems(m.SelectedPlayListItems.Items())
+
+		var items []list.Item
+		for _, item := range m.SelectedPlayListItems.Items() {
+			items = append(items, item)
+		}
+		m.MusicQueueList.SetItems(items)
 		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic)
 	}

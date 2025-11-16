@@ -282,7 +282,7 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 
 func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	var itemToAdd list.Item
-	currentlyPlayingTrackID := m.SelectedTrack.Track.Track.ID
+	var currentlyPlayingTrackID string
 	if m.FocusedOn == MainView && m.MainViewMode == NormalMode {
 		itemToAdd = m.SelectedPlayListItems.SelectedItem()
 	} else if m.FocusedOn == SearchResultTrack && m.MainViewMode == SearchResultMode {
@@ -293,6 +293,12 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 
 	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 		currentlyPlayingTrackID = m.SelectedTrack.Track.Track.ID
+	}
+
+	var musicQueue = m.MusicQueueList.Items()
+
+	if len(musicQueue) == 0 {
+		return m, m.MusicQueueList.SetItems([]list.Item{itemToAdd})
 	}
 
 	var currentlyPlayingTrackIndex int

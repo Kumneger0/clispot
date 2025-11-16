@@ -34,13 +34,13 @@ const (
 type MainViewMode string
 
 const (
-	SearchResultMode MainViewMode = "SearchResultMode"
+	SearchResultMode MainViewMode = "SEARCH_RESULT_MODE"
 	//currently im showing the search result in main area which is the center one
 	//let's say the user searches for a song or playlist and sees the result and he chose the first result
 	//at this time the previous are gone b/c i was sharing  this main new to show items in playlist and the search result
 	// so by adding this MainViewMode we can switch b/c modes so that we keep the result in memory
 	// meaning we can switch b/n search result and normal mode
-	NormalMode MainViewMode = "Normal Mode"
+	NormalMode MainViewMode = "NORMAL_MODE"
 )
 
 type SpotifySearchResult struct {

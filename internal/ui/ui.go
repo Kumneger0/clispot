@@ -51,20 +51,25 @@ type UserArguments struct {
 	DebugPath string
 }
 
+type SelectedTrack struct {
+	isLiked bool
+	Track   *types.PlaylistTrackObject
+}
+
 type Model struct {
 	Playlist              list.Model
 	SelectedPlayListItems list.Model
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
-	PlayerProcess                           *youtube.Player
-	SelectedTrack, NextTrack, PreviousTrack *types.PlaylistTrackObject
-	PlayedSeconds                           float64
-	Height                                  int
-	Width                                   int
-	Search                                  textinput.Model
-	MusicQueueList                          list.Model
-	DBusConn                                *Instance
+	PlayerProcess  *youtube.Player
+	SelectedTrack  *SelectedTrack
+	PlayedSeconds  float64
+	Height         int
+	Width          int
+	Search         textinput.Model
+	MusicQueueList list.Model
+	DBusConn       *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
@@ -125,20 +130,20 @@ func (m Model) View() string {
 
 	var playingView string
 
-	if m.SelectedTrack != nil {
+	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 		var stringBuilder strings.Builder
-		stringBuilder.WriteString(m.SelectedTrack.Track.Name)
+		stringBuilder.WriteString(m.SelectedTrack.Track.Track.Name)
 		stringBuilder.WriteString(" ")
 		var artistNames []string
-		for _, artist := range m.SelectedTrack.Track.Artists {
+		for _, artist := range m.SelectedTrack.Track.Track.Artists {
 			artistNames = append(artistNames, artist.Name)
 		}
 		artistName := strings.Join(artistNames, ",")
 		stringBuilder.WriteString(artistName)
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
-		total := time.Duration(m.SelectedTrack.Track.DurationMS) * time.Millisecond
-		playingView = renderNowPlaying(m.SelectedTrack.Track.Name, artistName, currentPosition, total)
+		total := time.Duration(m.SelectedTrack.Track.Track.DurationMS) * time.Millisecond
+		playingView = renderNowPlaying(m.SelectedTrack, currentPosition, total)
 	}
 
 	controls := renderPlayerControls()

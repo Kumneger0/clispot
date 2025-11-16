@@ -82,7 +82,28 @@ func renderSearchBar(m *Model, width int) string {
 	return strings.TrimRight(box.Render(content), "\n")
 }
 
-func renderNowPlaying(trackName, artistName string, currentPosition, TotalDuration time.Duration) string {
+func renderNowPlaying(selectedTrack *SelectedTrack, currentPosition, TotalDuration time.Duration) string {
+	if selectedTrack == nil {
+		return ""
+	}
+	var stringBuilder strings.Builder
+	var artistNames []string
+	var artists = selectedTrack.Track.Track.Artists
+	for _, artist := range artists {
+		artistNames = append(artistNames, artist.Name)
+	}
+	artistName := strings.Join(artistNames, ",")
+	stringBuilder.WriteString(artistName)
+
+	trackName := selectedTrack.Track.Track.Name
+
+	var likedIndicator string
+	if selectedTrack.isLiked {
+		likedIndicator = "❤️"
+	} else {
+		likedIndicator = "💔"
+	}
+
 	barWidth := 40
 	var progressFloat float64
 	if TotalDuration == 0 {
@@ -90,25 +111,19 @@ func renderNowPlaying(trackName, artistName string, currentPosition, TotalDurati
 	} else {
 		progressFloat = float64(currentPosition.Abs()) / float64(TotalDuration.Abs()) * float64(barWidth)
 	}
-
-	// 40 bar width
-	// 1.0 // currentPosition
-	// 4.0  // totalDuration
-	// 1.0 / 4.0 => 0.25
-	// 0.25 * 40 => 10
-
 	progress := max(min(int(math.Max(progressFloat, 1)), barWidth), 0)
 
 	left := strings.Repeat("▰", progress)
 	rightCount := max(barWidth-progress, 0)
 	right := strings.Repeat("▱", rightCount)
 
-	return fmt.Sprintf("▶ %s — %s %s / %s\n%s\n",
+	return fmt.Sprintf("▶ %s — %s %s / %s\n%s %s\n",
 		trackName,
 		artistName,
 		formatTime(currentPosition),
 		formatTime(TotalDuration),
 		left+right,
+		likedIndicator,
 	)
 }
 

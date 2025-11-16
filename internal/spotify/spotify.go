@@ -44,6 +44,10 @@ const (
 	artistsURL          = "https://api.spotify.com/v1/artists/"
 	followedArtistURL   = "https://api.spotify.com/v1/me/following?type=artist"
 	userSavedTrackURL   = "https://api.spotify.com/v1/me/tracks"
+	checkUserSavedTrack = "https://api.spotify.com/v1/me/tracks/contains?ids="
+)
+
+var (
 	userTopItemsBaseURL = "https://api.spotify.com/v1/me/top/"
 	searchBaseURL       = "https://api.spotify.com/v1/search"
 )
@@ -60,11 +64,16 @@ type APIURLS interface {
 	GetArtistsTopTrackURL(id string) string
 	GetSearchURL(q string) string
 	GetUserSavedTrackURL() string
+	GetCheckUserSavedTrackURL() string
 }
 
 type apiURL struct{}
 
 var APIURL APIURLS = apiURL{}
+
+func (a apiURL) GetCheckUserSavedTrackURL() string {
+	return checkUserSavedTrack
+}
 
 func (a apiURL) GetUserSavedTrackURL() string {
 	return userSavedTrackURL
@@ -131,6 +140,32 @@ func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader s
 	}
 	req.Header.Add("Authorization", authorizationHeader)
 	return http.DefaultClient.Do(req)
+}
+
+func CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error) {
+	authorizationHeader := "Bearer " + accessToken
+
+	resp, err := makeRequest("GET", APIURL.GetCheckUserSavedTrackURL()+trackID, authorizationHeader, nil)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// fulldata, err := io.ReadAll(resp.Body)
+
+	fmt.Println("full data", resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var contains []bool
+	if err := json.NewDecoder(resp.Body).Decode(&contains); err != nil {
+		return nil, err
+	}
+
+	return contains, nil
 }
 
 type SaveTrackForCurrentUserRequest struct {

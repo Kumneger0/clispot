@@ -72,6 +72,13 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.CheckUserSavedTrackResponseMsg:
+		if msg.Err != nil {
+			slog.Error(msg.Err.Error())
+			return m, nil
+		}
+		m.SelectedTrack.isLiked = msg.Saved
+		return m, nil
 	case types.SearchingMsg:
 		m.IsSearchLoading = true
 	case types.SpotifySearchResultMsg:
@@ -80,7 +87,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			//reminder
 			//TODO: don't forgot to show the error for the user
 		}
-
 		if msg.Result != nil {
 			m.FocusedOn = SearchResult
 			m.MainViewMode = SearchResultMode
@@ -98,7 +104,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 			m.IsSearchLoading = false
 		}
-
 	case *types.UserFollowedArtistResponse:
 		playlist := m.Playlist.Items()
 		for _, artist := range msg.Artists.Items {
@@ -125,8 +130,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		var totalDurationInSeconds int
 
-		if m.SelectedTrack != nil {
-			totalDurationInSeconds = m.SelectedTrack.Track.DurationMS / 1000
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
+			totalDurationInSeconds = m.SelectedTrack.Track.Track.DurationMS / 1000
 		}
 		diff := float64(totalDurationInSeconds) - (m.PlayedSeconds)
 
@@ -136,16 +141,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = model
 			cmds = append(cmds, cmd)
 		}
-
 		cmds = append(cmds, cmd())
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width - 4
 		m.Height = msg.Height - 4
-
 		dims := calculateLayoutDimensions(&m)
 		m.LyricsView.Width = dims.mainWidth
 		m.LyricsView.Height = dims.contentHeight
-
 		m.LyricsView.SetContent(testLyrics)
 		return m, nil
 	case types.UpdatePlaylistMsg:
@@ -198,36 +200,25 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
-	case "s":
-		if m.SelectedTrack != nil {
+	case "l":
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 			userToken := m.GetUserToken()
 			if userToken == nil {
 				slog.Error("m.GetUserToken is return nil ")
 				return m, nil
 			}
 			cmd := func() tea.Msg {
-				err := spotify.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.ID}, false)
+				var shouldRemove bool
+				if m.SelectedTrack.isLiked {
+					shouldRemove = true
+				} else {
+					shouldRemove = false
+				}
+				err := spotify.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.Track.ID}, shouldRemove)
 				if err != nil {
 					slog.Error(err.Error())
 				}
-				//TODO: show some kind of success indicator
-				return nil
-			}
-			return m, cmd
-		}
-	case "d":
-		if m.SelectedTrack != nil {
-			userToken := m.GetUserToken()
-			if userToken == nil {
-				slog.Error("m.GetUserToken is return nil ")
-				return m, nil
-			}
-			cmd := func() tea.Msg {
-				err := spotify.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.ID}, true)
-				if err != nil {
-					slog.Error(err.Error())
-				}
-				//TODO: show some kind of success indicator
+				m.SelectedTrack.isLiked = !m.SelectedTrack.isLiked
 				return nil
 			}
 			return m, cmd
@@ -504,17 +495,15 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		//TODO: implement some kind of way to show the error message
 		return m, nil
 	}
-	cmd := func() tea.Cmd {
-		return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-			if process != nil {
-				currentSeconds := process.ByteCounterReader.CurrentSeconds()
-				return types.UpdatePlayedSeconds{
-					CurrentSeconds: currentSeconds,
-				}
+	cmd := tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+		if process != nil {
+			currentSeconds := process.ByteCounterReader.CurrentSeconds()
+			return types.UpdatePlayedSeconds{
+				CurrentSeconds: currentSeconds,
 			}
-			return nil
-		})
-	}
+		}
+		return nil
+	})
 
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),
@@ -542,10 +531,36 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 			log.Println(dbusErr, metadata)
 		}
 	}
+	likedCmd := func() tea.Msg {
+		userToken := m.GetUserToken()
+		if userToken == nil {
+			return nil
+		}
+		response, err := spotify.CheckUserSavedTrack(userToken.AccessToken, selectedMusic.Track.ID)
+		if err != nil {
+			return types.CheckUserSavedTrackResponseMsg{
+				Saved: false,
+				Err:   err,
+			}
+		}
+		var isSaved bool
+		if len(response) > 0 {
+			isSaved = response[0]
+		} else {
+			isSaved = false
+		}
+		return types.CheckUserSavedTrackResponseMsg{
+			Saved: isSaved,
+			Err:   err,
+		}
+	}
 
 	m.PlayerProcess = process
-	m.SelectedTrack = &selectedMusic
-	return m, cmd()
+	m.SelectedTrack = &SelectedTrack{
+		isLiked: false,
+		Track:   &selectedMusic,
+	}
+	return m, tea.Batch(cmd, likedCmd)
 }
 
 func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
@@ -607,7 +622,6 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 	var cmd tea.Cmd
 	var cmds = *cmdsFromParent
 	cmds = append(cmds, cmd)
-
 	switch m.FocusedOn {
 	case SearchBar:
 		m.Search.Focus()

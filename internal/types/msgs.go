@@ -31,3 +31,8 @@ type SpotifySearchResultMsg struct {
 	Result *SearchResponse
 	Err    error
 }
+
+type CheckUserSavedTrackResponseMsg struct {
+	Saved bool
+	Err   error
+}

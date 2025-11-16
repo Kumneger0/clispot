@@ -100,19 +100,11 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 		}
 	}
 
-	featuredPlaylist, err := spotify.GetFeaturedPlaylist(token.AccessToken)
-	playListToRender := func() []types.Playlist {
-		if err == nil && featuredPlaylist != nil {
-			return featuredPlaylist.Playlists.Items
-		}
-		userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
-		if err != nil || userPlayList == nil {
-			slog.Error(err.Error())
-			fmt.Fprintln(os.Stdout, err)
-			return []types.Playlist{}
-		}
-		return userPlayList.Items
-	}()
+	userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
+	if err != nil || userPlayList == nil {
+		slog.Error(err.Error())
+		fmt.Fprintln(os.Stdout, err)
+	}
 
 	ins, messageChan, err := mpris.GetDbusInstance()
 
@@ -121,8 +113,10 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 	}
 
 	var items []list.Item
-	for _, item := range playListToRender {
-		items = append(items, item)
+	if userPlayList != nil {
+		for _, item := range userPlayList.Items {
+			items = append(items, item)
+		}
 	}
 
 	model := ui.Model{

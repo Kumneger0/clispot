@@ -76,26 +76,6 @@ Download the latest release from the [GitHub releases page](https://github.com/k
 
 For other operating systems, please build from source (see [Building from Source](install.md)).
 
-### Building from Source
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/kumneger0/clispot.git
-   cd clispot
-   ```
-
-2. Build the application:
-   ```bash
-   make build
-   ```
-
-3. Install system-wide (optional):
-   ```bash
-   sudo make install
-   ```
-
-## Configuration
-
 ### Authentication
 
 On first run, clispot will:

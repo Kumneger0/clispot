@@ -137,7 +137,7 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 	}
 
 	userSavedTracksListItem := spotify.UserSavedTracksListItem{
-		Name: "Saved Tracks",
+		Name: "Liked songs",
 	}
 
 	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)

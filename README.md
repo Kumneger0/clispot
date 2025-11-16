@@ -15,7 +15,7 @@ For detailed usage instructions, installation guide, keyboard shortcuts, and mor
   - [x] jump to artist/playlist view from results
 - [x] queue Management
   - [x] view track queue
-  - [ ] add track to queue
+  - [x] add track to queue
   - [x] remove track from queue
 - [x] spotify library browsing
   - [x] liked songs

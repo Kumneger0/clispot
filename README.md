@@ -7,20 +7,19 @@ listen to your favorite spotify songs right from your terminal
 For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [User Guide](docs/guide.md).
 
 ## TODO
-- [ ] like/unlike Song
+- [x] like/unlike Song
 - [ ] add to playlist
 - [x] advanced search
   - [x] filter search by type (track, album, artist)
   - [x] jump to artist/playlist view from results
-- [ ] queue Management
+- [x] queue Management
   - [x] view track queue
-  - [ ] reorder queue
   - [ ] remove track from queue
 - [ ] spotify Recommendations
   - [ ] get recommendations based on current track
   - [ ] view personalized "For You" recommendations
 - [x] spotify library browsing
-  - [ ] liked songs
+  - [x] liked songs
   - [ ] saved albums
   - [x] followed artists 
   - [x] saved playlist

@@ -1,4 +1,4 @@
-package types
+package types // nolint:revive
 
 type Restrictions struct {
 	Reason string `json:"reason"`

@@ -13,9 +13,7 @@ import (
 )
 
 var (
-	version             = ""
-	spotifyClientID     = ""
-	spotifyClientSecret = ""
+	version = ""
 )
 
 func main() {
@@ -41,7 +39,7 @@ func main() {
 	if err := os.WriteFile(lockFilePath, []byte(strconv.Itoa(pid)), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
 	}
-	err = cmd.Execute(version, spotifyClientID, spotifyClientSecret)
+	err = cmd.Execute(version)
 	if err != nil {
 		slog.Error(err.Error())
 	}

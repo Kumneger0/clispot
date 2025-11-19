@@ -27,12 +27,12 @@ var (
 	Program *tea.Program
 )
 
-func newRootCmd(version string, spotifyClientID string, spotifyClientSecret string) *cobra.Command {
+func newRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clispot",
 		Short: "spotify music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRoot(cmd, spotifyClientID, spotifyClientSecret)
+			return runRoot(cmd)
 		},
 	}
 
@@ -42,7 +42,7 @@ func newRootCmd(version string, spotifyClientID string, spotifyClientSecret stri
 	return cmd
 }
 
-func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) error {
+func runRoot(cmd *cobra.Command) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 
 	if err != nil {
@@ -81,7 +81,7 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 
 	if err != nil {
 		slog.Error(err.Error())
-		token, _ = spotify.Authenticate(spotifyClientID, spotifyClientSecret)
+		token, _ = spotify.Authenticate()
 	}
 
 	if token == nil {
@@ -90,7 +90,7 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 		os.Exit(1)
 	}
 	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-		token, err = spotify.RefreshToken(token.RefreshToken, spotifyClientID, spotifyClientSecret)
+		token, err = spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
 			slog.Error(err.Error())
 			userHomeDir, _ := os.UserHomeDir()
@@ -121,7 +121,7 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 
 	model := ui.Model{
 		GetUserToken: func() *types.UserTokenInfo {
-			token, err := validateToken(token, spotifyClientID, spotifyClientSecret)
+			token, err := validateToken(token)
 			if err != nil {
 				slog.Error(err.Error())
 				return nil
@@ -178,12 +178,12 @@ func runRoot(cmd *cobra.Command, spotifyClientID, spotifyClientSecret string) er
 	return nil
 }
 
-func validateToken(token *types.UserTokenInfo, spotifyClientID, spotifyClientSecret string) (*types.UserTokenInfo, error) {
+func validateToken(token *types.UserTokenInfo) (*types.UserTokenInfo, error) {
 	if token.ExpiresAt > time.Now().Unix() {
 		return token, nil
 	}
 	if token.RefreshToken != "" {
-		token, err := spotify.RefreshToken(token.RefreshToken, spotifyClientID, spotifyClientSecret)
+		token, err := spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
 			slog.Error(err.Error())
 			return nil, err
@@ -191,7 +191,7 @@ func validateToken(token *types.UserTokenInfo, spotifyClientID, spotifyClientSec
 		return token, nil
 	}
 	//this means something went wrong re-authenticate
-	token, err := spotify.Authenticate(spotifyClientID, spotifyClientSecret)
+	token, err := spotify.Authenticate()
 	if err != nil {
 		return nil, err
 	}
@@ -211,8 +211,8 @@ func doAllDepsInstalled() error {
 	return error
 }
 
-func Execute(version string, spotifyClientID string, spotifyClientSecret string) error {
-	cmd := newRootCmd(version, spotifyClientID, spotifyClientSecret)
+func Execute(version string) error {
+	cmd := newRootCmd(version)
 	userHomeDir, _ := os.UserHomeDir()
 	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")

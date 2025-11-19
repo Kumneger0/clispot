@@ -41,8 +41,6 @@ jobs:
         env:
           CGO_ENABLED: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5

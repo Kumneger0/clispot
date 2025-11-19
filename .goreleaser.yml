@@ -13,8 +13,6 @@ builds:
     main: .
     ldflags:
       - -s -w -X main.version={{ .Version }}
-      - -X main.spotifyClientID={{ .Env.SPOTIFY_CLIENT_ID }}
-      - -X main.spotifyClientSecret={{ .Env.SPOTIFY_CLIENT_SECRET }}
     env:
       - CGO_ENABLED=1
     goos:

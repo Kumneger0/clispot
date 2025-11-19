@@ -173,8 +173,8 @@ clispot uses a three-panel layout:
 
 **Playback Controls:**
 * `Space` - Toggle play/pause
-* `n` - Play next track in queue
-* `b` - Play previous track in queue
+* `n` - Play next track in queue(the player section needs to be focused here)
+* `b` - Play previous track in queue(the player section needs to be focused here)
 
 **Exiting:**
 * `q` or `Ctrl+C` - Quit the application

@@ -35,7 +35,7 @@ type Secret struct {
 }
 
 func getSecret() (*Secret, error) {
-	clientID, found := os.LookupEnv("SPOTIFY_ClIENT_ID")
+	clientID, found := os.LookupEnv("SPOTIFY_CLIENT_ID")
 	if !found {
 		return nil, errors.New("no client id found")
 	}

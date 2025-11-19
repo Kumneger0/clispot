@@ -7,36 +7,33 @@ help: ## list makefile targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: build
-build: ## build golang binary with embedded JS backend
+build: 
 	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.spotifyClientID=$(SPOTIFY_CLIENT_ID) -X main.spotifyClientSecret=$(SPOTIFY_CLIENT_SECRET)" -o $(projectname)
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags)" -o $(projectname)
 
 .PHONY: install
-install: build ## install binary to /usr/local/bin
+install: build
 	@echo "--> Installing clispot to /usr/local/bin..."
 	@sudo cp $(projectname) /usr/local/bin/
 	@echo "--> Installation complete. Run 'clispot' to start."
 
 .PHONY: run
-run: build ## build and run the app
+run: build 
 	@./$(projectname)
 
 .PHONY: bootstrap
-bootstrap: ## install build deps
+bootstrap: 
 	go generate -tags tools tools/tools.go
 
 .PHONY: test
-test: clean ## display test coverage
+test: clean 
 	go test --cover -parallel=1 -v -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | sort -rnk3
 
 .PHONY: clean
-clean: ## clean up environment
+clean: 
 	@echo "--> Cleaning up..."
 	@rm -rf coverage.out dist/ $(projectname)
-	@rm -rf embed
-	@rm -rf js/bin
-	@rm -rf js/node_modules
 
 .PHONY: cover
 cover: ## display test coverage

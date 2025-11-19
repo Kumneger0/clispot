@@ -10,23 +10,34 @@ Before building clispot from source, ensure you have the following prerequisites
 ## Installation Steps
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/kumneger0/clispot.git
    cd clispot
    ```
 
 2. Create a Spotify Application:
-   - Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications).
-   - Log in with your Spotify account.
-   - Click on "Create an app" and fill in the required details.
-   - Once the app is created, navigate to "Settings".
-   - Under "Redirect URIs", add `http://127.0.0.1:9292`. This is the redirect URI used by clispot for authentication.
-   - Save the changes.
-   - Note down your `Client ID` and `Client Secret`.
+
+   1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/applications) and log in.
+   2. Click on **"Create an app"**.
+   3. Give your application a name and description.
+   4. Find the **"Redirect URIs"** section and add the following URI:
+      ```
+      http://127.0.0.1:9292
+      ```
+   5. Save your changes.
+   6. Now, view your application's settings and find your **Client ID** and **Client Secret**.
+   7. Set them as environment variables. For example, you can add the following lines to your shell's configuration file (e.g., `.bashrc`, `.zshrc`):
+      ```bash
+      export SPOTIFY_CLIENT_ID="<your-client-id>"
+      export SPOTIFY_CLIENT_SECRET="<your-client-secret>"
+      ```
+   8. Remember to replace `<your-client-id>` and `<your-client-secret>` with the actual credentials from your Spotify application.
 
 3. Build the project with your Spotify credentials:
+
    ```bash
-   go build -ldflags="-X main.spotifyClientID=<your-client-id> -X main.spotifyClientSecret=<your-client-secret>" main.go
+   make build
    ```
 
 If you encounter any issues during installation:  

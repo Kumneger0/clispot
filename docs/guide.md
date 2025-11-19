@@ -78,13 +78,15 @@ For other operating systems, please build from source (see [Building from Source
 
 ### Authentication
 
+Before you can authenticate, you need to set up your Spotify API credentials. For detailed instructions on how to do this, please see the [Building from Source](install.md).
+
 On first run, clispot will:
 1. Start a local web server on port 9292
 2. Open your default browser to Spotify's authorization page
 3. Ask you to authorize the application
 4. Save the authentication token to `~/.clispot/token.json`
 
-The token is automatically refreshed when needed. You only need to authenticate once (unless you revoke access in Spotify settings).
+The token is automatically refreshed when needed. You only need to authenticate once (unless you revoke it).
 
 ## Usage
 
@@ -220,12 +222,6 @@ clispot uses a three-panel layout:
 
 ### Common Issues
 
-**"yt-dlp not found"**
-* Install `yt-dlp` using your package manager (see Prerequisites)
-
-**"ffmpeg not found"**
-* Install `ffmpeg` using your package manager
-
 **Music doesn't play**
 * Check that `yt-dlp` and `ffmpeg` are installed and in your PATH
 * Verify your internet connection
@@ -236,9 +232,6 @@ clispot uses a three-panel layout:
 **Authentication fails**
 * Ensure port 9292 is not blocked by a firewall
 * Check that your browser can open automatically (or manually open the URL shown)
-
-**Token expired errors**
-* Delete `~/.clispot/token.json` and re-authenticate
 
 ## Technical Details
 

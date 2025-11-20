@@ -118,11 +118,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case types.UpdatePlayedSeconds:
 		m.PlayedSeconds = msg.CurrentSeconds
 		cmd := func() tea.Cmd {
+			if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
+				return nil
+			}
+			//the more music we play the more timer we create and that is causing high cpu usage
+			// we can prevent that by comparing the track id with the selected one
+			if msg.TrackID != m.SelectedTrack.Track.Track.ID {
+				return nil
+			}
 			return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
 				if m.PlayerProcess != nil {
 					currentSeconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
 					return types.UpdatePlayedSeconds{
 						CurrentSeconds: currentSeconds,
+						TrackID:        msg.TrackID,
 					}
 				}
 				return nil
@@ -557,6 +566,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 			currentSeconds := process.ByteCounterReader.CurrentSeconds()
 			return types.UpdatePlayedSeconds{
 				CurrentSeconds: currentSeconds,
+				TrackID:        selectedMusic.Track.ID,
 			}
 		}
 		return nil

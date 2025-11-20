@@ -11,6 +11,7 @@ type UpdatePlaylistMsg struct {
 
 type UpdatePlayedSeconds struct {
 	CurrentSeconds float64
+	TrackID        string
 }
 
 type MessageType string

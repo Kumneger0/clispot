@@ -144,39 +144,43 @@ func SearchAndDownloadMusic(
 		OtoPlayer:         player,
 		ByteCounterReader: counter,
 		Close: func(isSkip bool) error {
+			var firstErr error
+
 			if player != nil {
 				player.Close()
 			}
+
 			if ff.Process != nil {
-				err := ff.Process.Kill()
-				if err != nil {
+				if err := ff.Process.Kill(); err != nil {
 					slog.Error(err.Error())
-					return err
+					firstErr = err
 				}
 			}
 			if yt.Process != nil {
-				err := yt.Process.Kill()
-				if err != nil {
+				if err := yt.Process.Kill(); err != nil && firstErr == nil {
 					slog.Error(err.Error())
-					return err
+					firstErr = err
 				}
 			}
+
+			_ = pw.Close()
+			_ = pr.Close()
+			if ytStderr != nil {
+				_ = ytStderr.Close()
+			}
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
+			_ = cacheFile.Close()
 
 			if isSkip {
-				err := os.Remove(musicPath)
-				if err != nil {
+				if err := os.Remove(musicPath); err != nil && !os.IsNotExist(err) && firstErr == nil {
 					slog.Error(err.Error())
-					return err
+					firstErr = err
 				}
-				return nil
 			}
 
-			pw.Close()
-			pr.Close()
-			ytStderr.Close()
-			ffStderr.Close()
-			cacheFile.Close()
-			return nil
+			return firstErr
 		},
 	}, nil
 }
@@ -225,20 +229,30 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		OtoPlayer:         player,
 		ByteCounterReader: counter,
 		Close: func(isSkip bool) error {
-			player.Close()
-			f.Close()
-			pw.Close()
-			pr.Close()
+			var firstErr error
+
+			if player != nil {
+				player.Close()
+			}
+			_ = f.Close()
+			_ = pw.Close()
+			_ = pr.Close()
+
 			if ff.Process != nil {
-				err := ff.Process.Kill()
-				if err != nil {
+				if err := ff.Process.Kill(); err != nil {
 					slog.Error(err.Error())
-					return err
+					firstErr = err
 				}
 			}
-			ytStderr.Close()
-			ffStderr.Close()
-			return nil
+
+			if ytStderr != nil {
+				_ = ytStderr.Close()
+			}
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
+
+			return firstErr
 		},
 	}, nil
 }

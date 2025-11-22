@@ -146,7 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if diff < 4 {
 			m.PlayedSeconds = 0
-			model, cmd := m.handleMusicChange(true)
+			model, cmd := m.handleMusicChange(true, false)
 			m = model
 			cmds = append(cmds, cmd)
 		}
@@ -186,12 +186,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleDbusMessage(msg types.MessageType, cmds []tea.Cmd) (Model, tea.Cmd) {
 	switch msg {
 	case types.NextTrack:
-		model, cmd := m.handleMusicChange(true)
+		model, cmd := m.handleMusicChange(true, true)
 		m = model
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
 	case types.PreviousTrack:
-		model, cmd := m.handleMusicChange(false)
+		model, cmd := m.handleMusicChange(false, true)
 		m = model
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
@@ -246,15 +246,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.FocusedOn != Player {
 			return m, nil
 		}
-		return m.handleMusicChange(false)
+		return m.handleMusicChange(false, true)
 	case "n":
 		if m.FocusedOn != Player {
 			return m, nil
 		}
-		return m.handleMusicChange(true)
+		return m.handleMusicChange(true, true)
 	case "q", "ctrl+c":
 		if m.PlayerProcess != nil {
-			err := m.PlayerProcess.Close()
+			err := m.PlayerProcess.Close(true)
 			if err != nil {
 				slog.Error(err.Error())
 			}
@@ -268,7 +268,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
+func (m Model) handleMusicChange(isForward, isSkip bool) (Model, tea.Cmd) {
 	if len(m.MusicQueueList.Items()) <= 0 {
 		return m, nil
 	}
@@ -292,7 +292,7 @@ func (m Model) handleMusicChange(isForward bool) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.MusicQueueList.Select(nextTrackIndex)
-	return m.PlaySelectedMusic(musicToPlay)
+	return m.PlaySelectedMusic(musicToPlay, isSkip)
 }
 
 func (m Model) addMusicToQueue() (Model, tea.Cmd) {
@@ -394,7 +394,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		}
 		m.MusicQueueList.SetItems(items)
 		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
-		return m.PlaySelectedMusic(selectedMusic)
+		return m.PlaySelectedMusic(selectedMusic, false)
 	}
 	userToken := m.GetUserToken()
 
@@ -469,7 +469,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			slog.Error("failed to cast the selected item to types.Artist")
 			return m, nil
 		}
-		return m.PlaySelectedMusic(selectedMusic)
+		return m.PlaySelectedMusic(selectedMusic, true)
 	}
 	return m, nil
 }
@@ -537,7 +537,7 @@ func getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 	}
 }
 
-func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model, tea.Cmd) {
+func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip bool) (Model, tea.Cmd) {
 	trackName := selectedMusic.Track.Name
 	albumName := selectedMusic.Track.Album.Name
 	var artistNames []string
@@ -548,14 +548,14 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	playerProcess := m.PlayerProcess
 
 	if playerProcess != nil {
-		err := playerProcess.Close()
+		err := playerProcess.Close(isSkip)
 		if err != nil {
 			slog.Error(err.Error())
 		}
 		//TODO:Show error message
 	}
 	debugFilePath := m.DebugPath
-	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, m.PlayerProcess == nil, debugFilePath)
+	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, debugFilePath)
 	if err != nil {
 		slog.Error(err.Error())
 		//TODO: implement some kind of way to show the error message

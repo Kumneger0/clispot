@@ -13,7 +13,7 @@ import (
 
 type Player struct {
 	OtoPlayer         *oto.Player
-	Close             func() error
+	Close             func(isSkip bool) error
 	ByteCounterReader *byteCounterReader
 }
 
@@ -33,7 +33,6 @@ func getOtoContext() (*oto.Context, chan struct{}, error) {
 		ctxErr = err
 		otoContext = ctx
 	})
-
 	return otoContext, readyChan, ctxErr
 }
 
@@ -44,31 +43,68 @@ type byteCounterReader struct {
 
 func (b *byteCounterReader) Read(p []byte) (int, error) {
 	n, err := b.r.Read(p)
-	b.total += n
+	if n > 0 {
+		b.total += n
+	}
 	return n, err
 }
 
 func (b *byteCounterReader) CurrentSeconds() float64 {
-	bytesPerSecond := 176400.0
-	return float64(b.total) / bytesPerSecond
+	return float64(b.total) / 176400.0
 }
 
-func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, shouldWait bool, logPathName string) (*Player, error) {
+func SearchAndDownloadMusic(
+	trackName string,
+	albumName string,
+	artistNames []string,
+	spotifyID string,
+	shouldWait bool,
+	logPathName string,
+) (*Player, error) {
 	searchQuery := "ytsearch:" + trackName
-
 	if len(artistNames) > 0 {
-		searchQuery = searchQuery + " " + artistNames[0]
+		searchQuery += " " + artistNames[0]
+	}
+
+	home, _ := os.UserHomeDir()
+	cacheDir := filepath.Join(home, ".cache", "clispot", "yt-audio")
+	err := os.MkdirAll(cacheDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	musicPath := filepath.Join(cacheDir, spotifyID+".m4a")
+
+	ytStderr, _ := os.Create(filepath.Join(logPathName, "ytstderr.log"))
+	ffStderr, _ := os.Create(filepath.Join(logPathName, "ffstderr.log"))
+
+	if _, err := os.Stat(musicPath); err == nil {
+		return playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)
 	}
 
 	yt := exec.Command("yt-dlp",
 		searchQuery,
 		"--no-playlist",
 		"-f", "bestaudio[ext=m4a]/bestaudio",
-		"--downloader", "aria2c",
-		"--downloader-args", "aria2c:-x 16 -s 16 -k 1M --file-allocation=none",
-		"--no-part",
 		"-o", "-",
 	)
+	yt.Stderr = ytStderr
+
+	ytOut, err := yt.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := yt.Start(); err != nil {
+		return nil, err
+	}
+
+	cacheFile, err := os.Create(musicPath)
+	if err != nil {
+		return nil, err
+	}
+
+	tee := io.TeeReader(ytOut, cacheFile)
 
 	ff := exec.Command("ffmpeg",
 		"-i", "pipe:0",
@@ -79,75 +115,130 @@ func SearchAndDownloadMusic(trackName, albumName string, artistNames []string, s
 		"pipe:1",
 	)
 
-	ytStderr, _ := os.Create(filepath.Join(logPathName, "ytstderr.log"))
-	ffStderr, _ := os.Create(filepath.Join(logPathName, "ffstderr.log"))
-
-	ytOut, _ := yt.StdoutPipe()
-
-	ff.Stdin = ytOut
+	ff.Stdin = tee
 	ff.Stderr = ffStderr
-	yt.Stderr = ytStderr
 
 	pr, pw := io.Pipe()
 	ff.Stdout = pw
 
-	if err := yt.Start(); err != nil {
-		return nil, err
-	}
 	if err := ff.Start(); err != nil {
 		return nil, err
 	}
+
 	ctx, ready, err := getOtoContext()
 	if err != nil {
-		slog.Error(err.Error())
 		return nil, err
 	}
-
 	if shouldWait {
 		<-ready
 	}
 
-	type Reader struct {
-		Read func(p byte) (n int, err error)
+	counter := &byteCounterReader{
+		r: pr,
 	}
 
-	counter := &byteCounterReader{r: pr}
 	player := ctx.NewPlayer(counter)
 	player.Play()
 
 	return &Player{
 		OtoPlayer:         player,
 		ByteCounterReader: counter,
-		Close: func() error {
-			var err error
-
+		Close: func(isSkip bool) error {
 			if player != nil {
 				player.Close()
 			}
-
 			if ff.Process != nil {
-				_ = ff.Process.Kill()
+				err := ff.Process.Kill()
+				if err != nil {
+					slog.Error(err.Error())
+					return err
+				}
 			}
-
 			if yt.Process != nil {
-				_ = yt.Process.Kill()
+				err := yt.Process.Kill()
+				if err != nil {
+					slog.Error(err.Error())
+					return err
+				}
 			}
 
-			if ytOut != nil {
-				_ = ytOut.Close()
+			if isSkip {
+				err := os.Remove(musicPath)
+				if err != nil {
+					slog.Error(err.Error())
+					return err
+				}
+				return nil
 			}
 
-			_ = ytStderr.Close()
-			_ = ffStderr.Close()
-
-			_ = pw.Close()
-			_ = pr.Close()
-
-			return err
+			pw.Close()
+			pr.Close()
+			ytStderr.Close()
+			ffStderr.Close()
+			cacheFile.Close()
+			return nil
 		},
 	}, nil
 }
 
-func CheckMusicSimilarity() {
-	//TODO: implement music similarity
+func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os.File) (*Player, error) {
+	f, err := os.Open(musicPath)
+	if err != nil {
+		return nil, err
+	}
+
+	ff := exec.Command("ffmpeg",
+		"-i", "pipe:0",
+		"-f", "s16le",
+		"-acodec", "pcm_s16le",
+		"-ac", "2",
+		"-ar", "44100",
+		"pipe:1",
+	)
+
+	ff.Stdin = f
+	ff.Stderr = ffStderr
+
+	pr, pw := io.Pipe()
+	ff.Stdout = pw
+
+	if err := ff.Start(); err != nil {
+		return nil, err
+	}
+
+	ctx, ready, err := getOtoContext()
+	if err != nil {
+		return nil, err
+	}
+	if shouldWait {
+		<-ready
+	}
+
+	counter := &byteCounterReader{
+		r: pr,
+	}
+
+	player := ctx.NewPlayer(counter)
+	player.Play()
+
+	return &Player{
+		OtoPlayer:         player,
+		ByteCounterReader: counter,
+		Close: func(isSkip bool) error {
+			player.Close()
+			f.Close()
+			pw.Close()
+			pr.Close()
+			if ff.Process != nil {
+				err := ff.Process.Kill()
+				if err != nil {
+					slog.Error(err.Error())
+					return err
+				}
+			}
+			ytStderr.Close()
+			ffStderr.Close()
+			return nil
+		},
+	}, nil
 }

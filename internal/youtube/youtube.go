@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/ebitengine/oto/v3"
+	"github.com/kumneger0/clispot/internal/config"
 )
 
 type Player struct {
@@ -59,7 +60,6 @@ func SearchAndDownloadMusic(
 	artistNames []string,
 	spotifyID string,
 	shouldWait bool,
-	logPathName string,
 ) (*Player, error) {
 	searchQuery := "ytsearch:" + trackName
 	if len(artistNames) > 0 {
@@ -74,6 +74,10 @@ func SearchAndDownloadMusic(
 	}
 
 	musicPath := filepath.Join(cacheDir, spotifyID+".m4a")
+
+	appConfig := config.GetConfig()
+
+	logPathName := appConfig.DebugDir
 
 	ytStderr, _ := os.Create(filepath.Join(logPathName, "ytstderr.log"))
 	ffStderr, _ := os.Create(filepath.Join(logPathName, "ffstderr.log"))
@@ -99,12 +103,20 @@ func SearchAndDownloadMusic(
 		return nil, err
 	}
 
-	cacheFile, err := os.Create(musicPath)
-	if err != nil {
-		return nil, err
-	}
+	isCacheDisabled := appConfig.CacheDisabled
 
-	tee := io.TeeReader(ytOut, cacheFile)
+	var cacheFile *os.File
+
+	var reader io.Reader
+	if !isCacheDisabled {
+		cacheFile, err = os.Create(musicPath)
+		if err != nil {
+			return nil, err
+		}
+		reader = io.TeeReader(ytOut, cacheFile)
+	} else {
+		reader = ytOut
+	}
 
 	ff := exec.Command("ffmpeg",
 		"-i", "pipe:0",
@@ -115,7 +127,7 @@ func SearchAndDownloadMusic(
 		"pipe:1",
 	)
 
-	ff.Stdin = tee
+	ff.Stdin = reader
 	ff.Stderr = ffStderr
 
 	pr, pw := io.Pipe()
@@ -171,7 +183,10 @@ func SearchAndDownloadMusic(
 			if ffStderr != nil {
 				_ = ffStderr.Close()
 			}
-			_ = cacheFile.Close()
+
+			if cacheFile != nil {
+				_ = cacheFile.Close()
+			}
 
 			if isSkip {
 				if err := os.Remove(musicPath); err != nil && !os.IsNotExist(err) && firstErr == nil {

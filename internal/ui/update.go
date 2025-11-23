@@ -554,8 +554,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		}
 		//TODO:Show error message
 	}
-	debugFilePath := m.DebugPath
-	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, debugFilePath)
+	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil)
 	if err != nil {
 		slog.Error(err.Error())
 		//TODO: implement some kind of way to show the error message

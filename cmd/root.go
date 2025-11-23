@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/kumneger0/clispot/internal/config"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,6 +51,12 @@ func runRoot(cmd *cobra.Command) error {
 		os.Exit(1)
 	}
 
+	isCacheDisabled, err := cmd.Flags().GetBool("disable-cache")
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
 	if err := os.MkdirAll(debugDir, 0755); err != nil {
 		fmt.Printf("failed to create debug directory '%s': %v\n", debugDir, err)
 		os.Exit(1)
@@ -65,6 +72,11 @@ func runRoot(cmd *cobra.Command) error {
 		fmt.Printf("the debug path '%v' is not a directory\n", debugDir)
 		os.Exit(1)
 	}
+
+	config.SetConfig(&config.Config{
+		DebugDir:      debugDir,
+		CacheDisabled: isCacheDisabled,
+	})
 
 	logger := logSetup.Init(debugDir)
 	defer logger.Close()
@@ -131,9 +143,6 @@ func runRoot(cmd *cobra.Command) error {
 		FocusedOn:    ui.SideView,
 		DBusConn:     ins,
 		MainViewMode: ui.NormalMode,
-		UserArguments: &ui.UserArguments{
-			DebugPath: debugDir,
-		},
 	}
 
 	userSavedTracksListItem := spotify.UserSavedTracksListItem{
@@ -216,6 +225,7 @@ func Execute(version string) error {
 	userHomeDir, _ := os.UserHomeDir()
 	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
+	cmd.Flags().Bool("disable-cache", false, "disable cache")
 	if err := cmd.Execute(); err != nil {
 		return fmt.Errorf("error executing root command: %w", err)
 	}

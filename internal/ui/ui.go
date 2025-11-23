@@ -47,10 +47,6 @@ type SpotifySearchResult struct {
 	Tracks, Artists, Albums, Playlists list.Model
 }
 
-type UserArguments struct {
-	DebugPath string
-}
-
 type SelectedTrack struct {
 	isLiked bool
 	Track   *types.PlaylistTrackObject
@@ -78,7 +74,6 @@ type Model struct {
 	IsSearchLoading bool
 	SearchResult    *SpotifySearchResult
 	GetUserToken    func() *types.UserTokenInfo
-	*UserArguments
 }
 
 type Instance struct {

@@ -54,6 +54,9 @@
   * MPRIS2 support for media key control (play/pause, next, previous)
   * Works with system media key shortcuts
 
+* **Caching**
+  * Caches YouTube audio streams for played tracks so next time when you play same song it plays from cache.
+
 ### Technical Details
 
 * Built with Go and the Bubble Tea TUI framework
@@ -101,10 +104,17 @@ The application will check for authentication and prompt you if needed.
 
 **Command-line Options:**
 * `-d, --debug-dir <path>` - Specify a directory where debug logs will be saved. The logs `ytstderr.log` and `ffstderr.log` will be created in this directory. If not specified, logs are saved in `~/.clispot/logs` directory.
+* `--disable-cache` - Disable caching of YouTube audio streams. When this flag is used, audio streams will not be saved to disk. Defaults to `false` (caching is enabled by default).
+
 
 Example:
 ```bash
 clispot -d ~/logs/clispot
+```
+
+Example with cache disabled:
+```bash
+clispot --disable-cache
 ```
 
 ### Interface Layout
@@ -255,6 +265,14 @@ clispot uses a three-panel layout:
     * If not specified: logs are saved in `~/.clispot/logs` directory
 
 These logs can be useful for troubleshooting playback issues and reporting bugs.
+
+### Caching Behavior
+
+When a track is played, clispot attempts to cache its audio stream.
+*   If you skip a song during its *first-time playback* (i.e., while it's being downloaded and cached), the partially downloaded cache file will be removed.
+*   If a song has already been *fully downloaded and cached*, and you skip it during a subsequent playback (when it's playing from the cache), the existing cache file will **not** be removed.
+
+This ensures that only incomplete or interrupted cache files are cleaned up, while fully cached tracks remain available for future playback.
 
 ### MPRIS Integration
 

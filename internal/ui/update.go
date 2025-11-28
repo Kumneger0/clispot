@@ -241,6 +241,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, cmd
 		}
 	case " ":
+		if m.FocusedOn != Player {
+			return m, nil
+		}
 		return m.handleMusicPausePlay()
 	case "b":
 		if m.FocusedOn != Player {

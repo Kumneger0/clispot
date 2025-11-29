@@ -89,7 +89,7 @@ func SearchAndDownloadMusic(
 	yt := exec.Command("yt-dlp",
 		searchQuery,
 		"--no-playlist",
-		"-f", "bestaudio[ext=m4a]/bestaudio",
+		"-f", "bestaudio",
 		"-o", "-",
 	)
 	yt.Stderr = ytStderr

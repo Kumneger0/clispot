@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ const (
 	// so by adding this MainViewMode we can switch b/c modes so that we keep the result in memory
 	// meaning we can switch b/n search result and normal mode
 	NormalMode MainViewMode = "NORMAL_MODE"
+	LyricsMode MainViewMode = "LYRICS_MODE"
 )
 
 type SpotifySearchResult struct {
@@ -58,22 +60,23 @@ type Model struct {
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
-	PlayerProcess  *youtube.Player
-	SelectedTrack  *SelectedTrack
-	PlayedSeconds  float64
-	Height         int
-	Width          int
-	Search         textinput.Model
-	MusicQueueList list.Model
-	DBusConn       *Instance
+	PlayerProcess       *youtube.Player
+	LyricsServerProcess *os.Process
+	SelectedTrack       *SelectedTrack
+	PlayedSeconds       float64
+	Height              int
+	Width               int
+	Search              textinput.Model
+	MusicQueueList      list.Model
+	DBusConn            *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
 	// TODO: find a better way than this looks very ugly
-	SearchQuery     string
-	IsSearchLoading bool
-	SearchResult    *SpotifySearchResult
-	GetUserToken    func() *types.UserTokenInfo
+	SearchQuery                              string
+	IsSearchLoading, IsLyricsServerInstalled bool
+	SearchResult                             *SpotifySearchResult
+	GetUserToken                             func() *types.UserTokenInfo
 }
 
 type Instance struct {
@@ -118,6 +121,8 @@ func (m Model) View() string {
 		playlistView := getStyle(&m, dimensions.mainWidth/4, dimensions.contentHeight, SearchResultPlaylist).Render(m.SearchResult.Playlists.View())
 		searchResultView := lipgloss.JoinVertical(lipgloss.Top, searchBar, lipgloss.JoinVertical(lipgloss.Top, "Search Result", lipgloss.JoinHorizontal(lipgloss.Top, trackView, artistView, playlistView)))
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
+	} else if m.MainViewMode == LyricsMode {
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(m.LyricsView.View())
 	} else {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
 			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
@@ -141,7 +146,7 @@ func (m Model) View() string {
 		playingView = renderNowPlaying(m.SelectedTrack, currentPosition, total)
 	}
 
-	controls := renderPlayerControls()
+	controls := renderPlayerControls(m.IsLyricsServerInstalled)
 	playingCombined := strings.TrimSpace(playingView) + "\n\n" + controls
 
 	playing := getPlayerStyles(&m, dimensions).Foreground(lipgloss.Color("21")).Render(playingCombined)

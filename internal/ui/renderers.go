@@ -130,7 +130,7 @@ func renderNowPlaying(selectedTrack *SelectedTrack, currentPosition, TotalDurati
 	)
 }
 
-func renderPlayerControls() string {
+func renderPlayerControls(isLyricsServerInstalled bool) string {
 	btn := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
@@ -139,12 +139,17 @@ func renderPlayerControls() string {
 
 	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("250"))
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-
+	var controls []string
 	prevBtn := btn.Render(key.Render("⏮") + " " + label.Render("Prev\n[b]"))
 	playBtn := btn.Render(key.Render("⏯") + " " + label.Render("Play/Pause\n[space]"))
 	nextBtn := btn.Render(key.Render("⏭") + " " + label.Render("Next\n[n]"))
 	quitBtn := btn.Render(key.Render("✖") + " " + label.Render("Quit\n[q]"))
-
-	row := lipgloss.JoinHorizontal(lipgloss.Top, prevBtn, playBtn, nextBtn, quitBtn)
+	controls = append(controls, prevBtn, playBtn, nextBtn, quitBtn)
+	if isLyricsServerInstalled {
+		lyricsIcon := "📝"
+		lyricsBtn := btn.Render(key.Render(lyricsIcon) + " " + label.Render("Lyrics\n[ctrl+l]"))
+		controls = append(controls, lyricsBtn)
+	}
+	row := lipgloss.JoinHorizontal(lipgloss.Top, controls...)
 	return row
 }

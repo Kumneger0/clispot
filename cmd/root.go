@@ -163,6 +163,12 @@ func runRoot(cmd *cobra.Command) error {
 	model.Playlist = playlists
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = musicQueueList
+	_, err = exec.LookPath("clispot-lyrics")
+	if err != nil {
+		model.IsLyricsServerInstalled = false
+	} else {
+		model.IsLyricsServerInstalled = true
+	}
 
 	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 

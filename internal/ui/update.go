@@ -5,11 +5,13 @@ import (
 	"log"
 	"log/slog"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/godbus/dbus/v5"
+	"github.com/kumneger0/clispot/internal/lyrics"
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
@@ -81,6 +83,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case types.SearchingMsg:
 		m.IsSearchLoading = true
+	case *lyrics.Response:
+		m.LyricsView.SetContent(*msg.Lyrics)
+		m.IsSearchLoading = false
+		m.MainViewMode = LyricsMode
+	case lyrics.Response:
+		m.LyricsView.SetContent(*msg.Lyrics)
+		m.IsSearchLoading = false
+		m.MainViewMode = LyricsMode
 	case types.SpotifySearchResultMsg:
 		if msg.Err != nil {
 			//hmm not again
@@ -217,6 +227,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				m.MusicQueueList.RemoveItem(m.MusicQueueList.GlobalIndex())
 			}
 		}
+	case "ctrl+l":
+		return m.getMusicLyrics(m.SelectedTrack)
 	case "l":
 		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 			userToken := m.GetUserToken()
@@ -262,6 +274,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				slog.Error(err.Error())
 			}
 		}
+		if m.LyricsServerProcess != nil {
+			fmt.Println("closing server")
+			err := m.LyricsServerProcess.Signal(syscall.SIGTERM)
+			if err != nil {
+				slog.Error(err.Error())
+			}
+		}
 		return m, tea.Quit
 	case "tab":
 		return changeFocusMode(&m, false)
@@ -269,6 +288,52 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m.handleEnterKey()
 	}
 	return m, nil
+}
+
+func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
+	if !m.IsLyricsServerInstalled {
+		return m, nil
+	}
+	if m.FocusedOn != Player {
+		return m, nil
+	}
+	if track == nil || track.Track == nil {
+		return m, nil
+	}
+	trackName := track.Track.Track.Name
+	var artistNames []string
+	for _, artist := range track.Track.Track.Artists {
+		artistNames = append(artistNames, artist.Name)
+	}
+	albumName := track.Track.Track.Album.Name
+
+	lyricsCmd := func() tea.Msg {
+		isServerRunning, err := lyrics.IsLyricsServerRunning()
+		if err != nil {
+			slog.Error(err.Error())
+		}
+
+		if !isServerRunning {
+			process, err := lyrics.StartLyricsServer()
+			if err != nil {
+				slog.Error(err.Error())
+				return nil
+			}
+			m.LyricsServerProcess = process
+		}
+		lyricsResponse, err := lyrics.GetMusicLyrics(trackName, artistNames, albumName)
+		if err != nil {
+			slog.Error(err.Error())
+			errMessage := "you'll have to guess the lyrics for this one"
+			return &lyrics.Response{
+				Match:  nil,
+				Lyrics: &errMessage,
+			}
+		}
+		return lyricsResponse
+	}
+	loadingCmd := SendLoadingCmd()
+	return m, tea.Batch(loadingCmd, lyricsCmd)
 }
 
 func (m Model) handleMusicChange(isForward, isSkip bool) (Model, tea.Cmd) {
@@ -541,6 +606,8 @@ func getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 }
 
 func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip bool) (Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	trackName := selectedMusic.Track.Name
 	albumName := selectedMusic.Track.Album.Name
 	var artistNames []string
@@ -573,6 +640,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		}
 		return nil
 	})
+
+	cmds = append(cmds, cmd)
 
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),
@@ -624,12 +693,20 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		}
 	}
 
+	cmds = append(cmds, likedCmd)
+
 	m.PlayerProcess = process
 	m.SelectedTrack = &SelectedTrack{
 		isLiked: false,
 		Track:   &selectedMusic,
 	}
-	return m, tea.Batch(cmd, likedCmd)
+
+	if m.MainViewMode == LyricsMode {
+		model, cmd := m.getMusicLyrics(m.SelectedTrack)
+		m = model
+		cmds = append(cmds, cmd)
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
@@ -721,8 +798,8 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 	default:
 		m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
 		cmds = append(cmds, cmd)
-		lyrics, cmd := m.LyricsView.Update(msg)
-		m.LyricsView = lyrics
+		lyricsModel, cmd := m.LyricsView.Update(msg)
+		m.LyricsView = lyricsModel
 		cmds = append(cmds, cmd)
 	}
 	return *m, tea.Batch(cmds...)

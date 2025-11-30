@@ -275,7 +275,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 		if m.LyricsServerProcess != nil {
-			fmt.Println("closing server")
 			err := m.LyricsServerProcess.Signal(syscall.SIGTERM)
 			if err != nil {
 				slog.Error(err.Error())
@@ -295,6 +294,10 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.FocusedOn != Player {
+		return m, nil
+	}
+	if m.MainViewMode == LyricsMode {
+		m.MainViewMode = NormalMode
 		return m, nil
 	}
 	if track == nil || track.Track == nil {

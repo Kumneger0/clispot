@@ -783,6 +783,16 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 	case QueueList:
 		m.MusicQueueList, cmd = m.MusicQueueList.Update(msg)
 		cmds = append(cmds, cmd)
+	case MainView:
+		switch m.MainViewMode {
+		case LyricsMode:
+			lyricsModel, cmd := m.LyricsView.Update(msg)
+			m.LyricsView = lyricsModel
+			cmds = append(cmds, cmd)
+		case NormalMode:
+			m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
+			cmds = append(cmds, cmd)
+		}
 	case SearchResultPlaylist:
 		if m.SearchResult != nil {
 			m.SearchResult.Playlists, cmd = m.SearchResult.Playlists.Update(msg)
@@ -799,11 +809,6 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 			cmds = append(cmds, cmd)
 		}
 	default:
-		m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
-		cmds = append(cmds, cmd)
-		lyricsModel, cmd := m.LyricsView.Update(msg)
-		m.LyricsView = lyricsModel
-		cmds = append(cmds, cmd)
 	}
 	return *m, tea.Batch(cmds...)
 }

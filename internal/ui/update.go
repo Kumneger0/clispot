@@ -228,6 +228,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 	case "ctrl+l":
+		if m.MainViewMode == LyricsMode {
+			m.MainViewMode = NormalMode
+			return m, nil
+		}
 		return m.getMusicLyrics(m.SelectedTrack)
 	case "l":
 		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
@@ -294,10 +298,6 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.FocusedOn != Player {
-		return m, nil
-	}
-	if m.MainViewMode == LyricsMode {
-		m.MainViewMode = NormalMode
 		return m, nil
 	}
 	if track == nil || track.Track == nil {

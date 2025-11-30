@@ -73,9 +73,35 @@ func runRoot(cmd *cobra.Command) error {
 		os.Exit(1)
 	}
 
+	ytDlpArgs := config.YtDlpArgs{
+		CookiesFromBrowser: nil,
+		Cookies:            nil,
+	}
+
+	cookiesFromBrowser, err := cmd.Flags().GetString("cookies-from-browser")
+
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
+	if cookiesFromBrowser != "" {
+		ytDlpArgs.CookiesFromBrowser = (*config.Browser)(&cookiesFromBrowser)
+	}
+
+	cookiesFile, err := cmd.Flags().GetString("cookies")
+
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
+	if cookiesFile != "" {
+		ytDlpArgs.Cookies = &cookiesFile
+	}
+
 	config.SetConfig(&config.Config{
 		DebugDir:      debugDir,
 		CacheDisabled: isCacheDisabled,
+		YtDlpArgs:     &ytDlpArgs,
 	})
 
 	logger := logSetup.Init(debugDir)
@@ -232,6 +258,8 @@ func Execute(version string) error {
 	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
+	cmd.Flags().String("cookies-from-browser", "", "The name of the browser to load cookies from this option is used by yt-dlp see yt-dlp docs to see supported browsers")
+	cmd.Flags().String("cookies", "", "cookies file the option you pass for this flag will be passed to yt-dlp checkout yt-dlp docs to learn more about this flag")
 	if err := cmd.Execute(); err != nil {
 		return fmt.Errorf("error executing root command: %w", err)
 	}

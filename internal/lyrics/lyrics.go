@@ -87,9 +87,10 @@ func IsLyricsServerRunning() (bool, error) {
 func StartLyricsServer() (*os.Process, error) {
 	cmd := exec.Command("clispot-lyrics")
 	err := cmd.Start()
-	time.Sleep(time.Second * 2) // wait for the server to start
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
+	time.Sleep(time.Second * 2) // wait for the server to start
 	return cmd.Process, nil
 }

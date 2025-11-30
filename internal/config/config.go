@@ -1,21 +1,7 @@
 package config
 
-type Browser string
-
-const (
-	CHROME   Browser = "chrome"
-	CHROMIUM Browser = "chromium"
-	FIREFOX  Browser = "firefox"
-	BRAVE    Browser = "brave"
-	EDGE     Browser = "edge"
-	OPERA    Browser = "opera"
-	SAFARI   Browser = "safari"
-	VIVALDI  Browser = "vivaldi"
-	WHALE    Browser = "whale"
-)
-
 type YtDlpArgs struct {
-	CookiesFromBrowser *Browser
+	CookiesFromBrowser *string
 	Cookies            *string
 }
 

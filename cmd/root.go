@@ -85,7 +85,7 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	if cookiesFromBrowser != "" {
-		ytDlpArgs.CookiesFromBrowser = (*config.Browser)(&cookiesFromBrowser)
+		ytDlpArgs.CookiesFromBrowser = (&cookiesFromBrowser)
 	}
 
 	cookiesFile, err := cmd.Flags().GetString("cookies")

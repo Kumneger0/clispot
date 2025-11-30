@@ -85,7 +85,7 @@ func SearchAndDownloadMusic(
 	}
 
 	if appConfig.YtDlpArgs.CookiesFromBrowser != nil {
-		args = append(args, "--cookies-from-browser", string(*appConfig.YtDlpArgs.CookiesFromBrowser))
+		args = append(args, "--cookies-from-browser", *appConfig.YtDlpArgs.CookiesFromBrowser)
 	}
 	if appConfig.YtDlpArgs.Cookies != nil {
 		args = append(args, "--cookies", *appConfig.YtDlpArgs.Cookies)

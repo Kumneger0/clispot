@@ -57,6 +57,9 @@
 * **Caching**
   * Caches YouTube audio streams for played tracks so next time when you play same song it plays from cache.
 
+* **Lyrics Display**
+  * View lyrics for the currently playing music. To enable this feature, install the `clispot-lyrics` tool globally from [https://github.com/Kumneger0/clispot-lyrics](https://github.com/Kumneger0/clispot-lyrics). Once installed, clispot will automatically provide an option to open lyrics for the selected music.
+
 ### Technical Details
 
 * Built with Go and the Bubble Tea TUI framework
@@ -105,6 +108,8 @@ The application will check for authentication and prompt you if needed.
 **Command-line Options:**
 * `-d, --debug-dir <path>` - Specify a directory where debug logs will be saved. The logs `ytstderr.log` and `ffstderr.log` will be created in this directory. If not specified, logs are saved in `~/.clispot/logs` directory.
 * `--disable-cache` - Disable caching of YouTube audio streams. When this flag is used, audio streams will not be saved to disk. Defaults to `false` (caching is enabled by default).
+* `--cookies-from-browser <browser_name[:profile]>` - Pass cookies from the specified browser to `yt-dlp`. This is useful for accessing age-restricted content or content that requires login.
+* `--cookies <filepath>` - Pass cookies from a specified file to `yt-dlp`. The file should be in Netscape cookie file format.
 
 
 Example:
@@ -115,6 +120,16 @@ clispot -d ~/logs/clispot
 Example with cache disabled:
 ```bash
 clispot --disable-cache
+```
+
+Example using cookies from a browser (e.g., Firefox):
+```bash
+clispot --cookies-from-browser firefox
+```
+
+Example using cookies from a file:
+```bash
+clispot --cookies ~/my_cookies.txt
 ```
 
 ### Interface Layout
@@ -205,6 +220,7 @@ clispot uses a three-panel layout:
 | `n` | Next track |
 | `b` | Previous track |
 | `q` / `Ctrl+C` | Quit |
+| `Ctrl+L` | Open Lyrics |
 
 ### Workflow Examples
 

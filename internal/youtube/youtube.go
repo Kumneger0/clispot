@@ -77,6 +77,20 @@ func SearchAndDownloadMusic(
 
 	appConfig := config.GetConfig()
 
+	args := []string{
+		searchQuery,
+		"--no-playlist",
+		"-f", "bestaudio",
+		"-o", "-",
+	}
+
+	if appConfig.YtDlpArgs.CookiesFromBrowser != nil {
+		args = append(args, "--cookies-from-browser", string(*appConfig.YtDlpArgs.CookiesFromBrowser))
+	}
+	if appConfig.YtDlpArgs.Cookies != nil {
+		args = append(args, "--cookies", *appConfig.YtDlpArgs.Cookies)
+	}
+
 	logPathName := appConfig.DebugDir
 
 	ytStderr, _ := os.Create(filepath.Join(logPathName, "ytstderr.log"))
@@ -86,12 +100,7 @@ func SearchAndDownloadMusic(
 		return playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)
 	}
 
-	yt := exec.Command("yt-dlp",
-		searchQuery,
-		"--no-playlist",
-		"-f", "bestaudio",
-		"-o", "-",
-	)
+	yt := exec.Command("yt-dlp", args...)
 	yt.Stderr = ytStderr
 
 	ytOut, err := yt.StdoutPipe()

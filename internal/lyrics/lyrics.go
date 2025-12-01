@@ -33,6 +33,15 @@ type Response struct {
 	Lyrics *string `json:"lyrics"`
 }
 
+var LyricsErrors = []string{
+	"We searched everywhere. Found nothing. Pain.",
+	"If the lyrics exist, they’re hiding from you specifically.",
+	"No lyrics. Just vibes.",
+	"We tried. They said no.",
+	"Lyrics is missing. I’m tired. Try again later.",
+	"You'll have to guess the lyrics for this one",
+}
+
 func GetMusicLyrics(title string, artists []string, album string) (*Response, error) {
 	reqBody := Req{
 		Title:   title,

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math/rand"
 	"strings"
 	"syscall"
 	"time"
@@ -327,7 +328,8 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 		lyricsResponse, err := lyrics.GetMusicLyrics(trackName, artistNames, albumName)
 		if err != nil {
 			slog.Error(err.Error())
-			errMessage := "you'll have to guess the lyrics for this one"
+			i := rand.Intn(len(lyrics.LyricsErrors))
+			errMessage := lyrics.LyricsErrors[i]
 			return &lyrics.Response{
 				Match:  nil,
 				Lyrics: &errMessage,
@@ -785,10 +787,6 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 		cmds = append(cmds, cmd)
 	case MainView:
 		switch m.MainViewMode {
-		case LyricsMode:
-			lyricsModel, cmd := m.LyricsView.Update(msg)
-			m.LyricsView = lyricsModel
-			cmds = append(cmds, cmd)
 		case NormalMode:
 			m.SelectedPlayListItems, cmd = m.SelectedPlayListItems.Update(msg)
 			cmds = append(cmds, cmd)
@@ -809,6 +807,11 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 			cmds = append(cmds, cmd)
 		}
 	default:
+	}
+	if m.MainViewMode == LyricsMode {
+		lyricsModel, cmd := m.LyricsView.Update(msg)
+		m.LyricsView = lyricsModel
+		cmds = append(cmds, cmd)
 	}
 	return *m, tea.Batch(cmds...)
 }

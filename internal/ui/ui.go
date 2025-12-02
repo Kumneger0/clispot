@@ -122,7 +122,7 @@ func (m Model) View() string {
 		searchResultView := lipgloss.JoinVertical(lipgloss.Top, searchBar, lipgloss.JoinVertical(lipgloss.Top, "Search Result", lipgloss.JoinHorizontal(lipgloss.Top, trackView, artistView, playlistView)))
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
 	} else if m.MainViewMode == LyricsMode {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(m.LyricsView.View())
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
 	} else {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
 			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
@@ -164,7 +164,6 @@ func formatTime(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
-
 	totalSeconds := int(d.Seconds())
 	minutes := totalSeconds / 60
 	seconds := totalSeconds % 60

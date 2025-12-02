@@ -808,7 +808,7 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 		}
 	default:
 	}
-	if m.MainViewMode == LyricsMode {
+	if m.MainViewMode == LyricsMode && m.FocusedOn != SearchBar {
 		lyricsModel, cmd := m.LyricsView.Update(msg)
 		m.LyricsView = lyricsModel
 		cmds = append(cmds, cmd)

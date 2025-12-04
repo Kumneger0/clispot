@@ -22,10 +22,10 @@ type Req struct {
 }
 
 type Match struct {
-	Title  string `json:"title"`
-	Artist string `json:"artist"`
-	URL    string `json:"url"`
-	Score  int    `json:"score"`
+	Title  string  `json:"title"`
+	Artist string  `json:"artist"`
+	URL    string  `json:"url"`
+	Score  float64 `json:"score"`
 }
 
 type Response struct {

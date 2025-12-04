@@ -221,7 +221,7 @@ func (m Model) handleDbusMessage(msg types.MessageType, cmds []tea.Cmd) (Model, 
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
 	case types.PlayPause:
-		model, cmd := m.handleMusicPausePlay()
+		model, cmd := m.HandleMusicPausePlay()
 		m = model
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
@@ -275,7 +275,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.FocusedOn != Player {
 			return m, nil
 		}
-		return m.handleMusicPausePlay()
+		return m.HandleMusicPausePlay()
 	case "b":
 		if m.FocusedOn != Player {
 			return m, nil
@@ -420,7 +420,7 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleMusicPausePlay() (Model, tea.Cmd) {
+func (m Model) HandleMusicPausePlay() (Model, tea.Cmd) {
 	if m.PlayerProcess == nil {
 		return m, nil
 	}

@@ -144,7 +144,7 @@ func renderPlayerControls(isLyricsServerInstalled bool) string {
 	playBtn := btn.Render(key.Render("⏯") + " " + label.Render("Play/Pause\n[space]"))
 	nextBtn := btn.Render(key.Render("⏭") + " " + label.Render("Next\n[n]"))
 	quitBtn := btn.Render(key.Render("✖") + " " + label.Render("Quit\n[q]"))
-	likeUnlikeBtn := btn.Render(key.Render("⏯") + " " + label.Render("like/unlike\n[l]"))
+	likeUnlikeBtn := btn.Render(key.Render("❤️") + " " + label.Render("like/unlike\n[l]"))
 
 	controls = append(controls, prevBtn, playBtn, nextBtn, quitBtn, likeUnlikeBtn)
 	if isLyricsServerInstalled {

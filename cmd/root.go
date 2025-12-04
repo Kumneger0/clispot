@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kumneger0/clispot/internal/config"
+	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -138,23 +139,10 @@ func runRoot(cmd *cobra.Command) error {
 		}
 	}
 
-	userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
-	if err != nil || userPlayList == nil {
-		slog.Error(err.Error())
-		fmt.Fprintln(os.Stdout, err)
-	}
-
 	ins, messageChan, err := mpris.GetDbusInstance()
 
 	if err != nil {
 		slog.Error(err.Error())
-	}
-
-	var items []list.Item
-	if userPlayList != nil {
-		for _, item := range userPlayList.Items {
-			items = append(items, item)
-		}
 	}
 
 	model := ui.Model{
@@ -171,8 +159,32 @@ func runRoot(cmd *cobra.Command) error {
 		MainViewMode: ui.NormalMode,
 	}
 
+	isHeadlessMode, err := cmd.Flags().GetBool("headless")
+
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
+	if isHeadlessMode {
+		headless.StartServer(&model)
+		return nil
+	}
+
 	userSavedTracksListItem := spotify.UserSavedTracksListItem{
 		Name: "Liked songs",
+	}
+
+	userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
+	if err != nil || userPlayList == nil {
+		slog.Error(err.Error())
+		fmt.Fprintln(os.Stdout, err)
+	}
+
+	var items []list.Item
+	if userPlayList != nil {
+		for _, item := range userPlayList.Items {
+			items = append(items, item)
+		}
 	}
 
 	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
@@ -258,8 +270,10 @@ func Execute(version string) error {
 	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
+	cmd.Flags().Bool("headless", false, "Headless mode which provides api endpoint to build custom ui")
 	cmd.Flags().String("cookies-from-browser", "", "The name of the browser to load cookies from this option is used by yt-dlp see yt-dlp docs to see supported browsers")
 	cmd.Flags().String("cookies", "", "cookies file the option you pass for this flag will be passed to yt-dlp checkout yt-dlp docs to learn more about this flag")
+
 	if err := cmd.Execute(); err != nil {
 		return fmt.Errorf("error executing root command: %w", err)
 	}

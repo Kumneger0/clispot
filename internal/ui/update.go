@@ -166,6 +166,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width - 4
 		m.Height = msg.Height - 4
 		dims := calculateLayoutDimensions(&m)
+		m.LibraryWidth = dims.sidebarWidth
+		m.MainViewWidth = dims.mainWidth
+		m.PlayerSectionHeight = dims.inputHeight
 		m.LyricsView.Width = dims.mainWidth
 		m.LyricsView.Height = dims.contentHeight
 		m.LyricsView.SetContent(testLyrics)
@@ -188,6 +191,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd := m.handleKeyPress(msg)
 		m = model
 		cmds = append(cmds, cmd)
+	case tea.MouseMsg:
+		x := msg.X
+		y := msg.Y
+		if x > m.LibraryWidth && x <= (m.LibraryWidth+m.MainViewWidth) && y <= (m.Height-m.PlayerSectionHeight) {
+			if m.MainViewMode == LyricsMode && m.FocusedOn != SearchBar {
+				lyricsModel, cmd := m.LyricsView.Update(msg)
+				m.LyricsView = lyricsModel
+				cmds = append(cmds, cmd)
+			}
+		}
+
 	default:
 		//TODO: do something here if no key matched
 	}
@@ -807,11 +821,6 @@ func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (M
 			cmds = append(cmds, cmd)
 		}
 	default:
-	}
-	if m.MainViewMode == LyricsMode && m.FocusedOn != SearchBar {
-		lyricsModel, cmd := m.LyricsView.Update(msg)
-		m.LyricsView = lyricsModel
-		cmds = append(cmds, cmd)
 	}
 	return *m, tea.Batch(cmds...)
 }

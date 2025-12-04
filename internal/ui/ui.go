@@ -66,6 +66,9 @@ type Model struct {
 	PlayedSeconds       float64
 	Height              int
 	Width               int
+	LibraryWidth        int
+	MainViewWidth       int
+	PlayerSectionHeight int
 	Search              textinput.Model
 	MusicQueueList      list.Model
 	DBusConn            *Instance

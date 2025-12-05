@@ -37,7 +37,7 @@ type PlayRequestBodyType struct {
 	AlbumName string   `json:"album"`
 }
 
-func StartServer(m *ui.Model) {
+func StartServer(m *ui.SafeModel) {
 	mux := http.NewServeMux()
 	server := &http.Server{
 		Addr:    ":8282",
@@ -49,6 +49,8 @@ func StartServer(m *ui.Model) {
 	})
 
 	mux.HandleFunc("/library", func(w http.ResponseWriter, r *http.Request) {
+		m.Mu.RLock()
+		defer m.Mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
 
 		userToken := m.GetUserToken()
@@ -102,6 +104,8 @@ func StartServer(m *ui.Model) {
 	})
 
 	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
+		m.Mu.RLock()
+		defer m.Mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
 
 		id := r.URL.Query().Get("id")
@@ -185,6 +189,8 @@ func StartServer(m *ui.Model) {
 	})
 
 	mux.HandleFunc("/player", func(w http.ResponseWriter, r *http.Request) {
+		m.Mu.Lock()
+		defer m.Mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		var action string
 		if m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying() {
@@ -206,6 +212,8 @@ func StartServer(m *ui.Model) {
 	})
 
 	mux.HandleFunc("POST /player/play", func(w http.ResponseWriter, r *http.Request) {
+		m.Mu.Lock()
+		defer m.Mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 
 		if r.Method != http.MethodPost {
@@ -241,7 +249,9 @@ func StartServer(m *ui.Model) {
 
 		if m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying() {
 			err := m.PlayerProcess.Close(true)
-			slog.Error(err.Error())
+			if err != nil {
+				slog.Error(err.Error())
+			}
 		}
 
 		process, err := youtube.SearchAndDownloadMusic(
@@ -310,6 +320,7 @@ func StartServer(m *ui.Model) {
 				return
 
 			case <-ticker.C:
+				m.Mu.RLock()
 				if m.PlayerProcess == nil || m.PlayerProcess.ByteCounterReader == nil {
 					fmt.Fprintf(w, "data: 0\n\n")
 				} else {
@@ -317,6 +328,7 @@ func StartServer(m *ui.Model) {
 					msg, _ := json.Marshal(map[string]float64{"seconds": seconds})
 					fmt.Fprintf(w, "data: %s\n\n", msg)
 				}
+				m.Mu.RUnlock()
 				flusher.Flush()
 			}
 		}

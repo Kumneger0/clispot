@@ -166,7 +166,10 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	if isHeadlessMode {
-		headless.StartServer(&model)
+		safeModel := ui.SafeModel{
+			Model: &model,
+		}
+		headless.StartServer(&safeModel)
 		return nil
 	}
 

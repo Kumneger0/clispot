@@ -178,9 +178,13 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
-	if err != nil || userPlayList == nil {
+	if err != nil {
 		slog.Error(err.Error())
 		fmt.Fprintln(os.Stdout, err)
+	}
+
+	if userPlayList == nil {
+		slog.Error("GetUserPlaylists returned nil")
 	}
 
 	var items []list.Item

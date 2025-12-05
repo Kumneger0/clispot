@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -86,6 +87,13 @@ type Instance struct {
 	Props *prop.Properties
 	Conn  *dbus.Conn
 }
+
+type SafeModel struct {
+	Mu sync.RWMutex
+	*Model
+}
+
+// Use m.mu.Lock()/Unlock() when writing, m.mu.RLock()/RUnlock() when reading
 
 func (m Model) Init() tea.Cmd {
 	var cmd tea.Cmd

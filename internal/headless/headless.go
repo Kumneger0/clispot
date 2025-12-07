@@ -39,10 +39,6 @@ type PlayRequestBodyType struct {
 	AlbumName string   `json:"album"`
 }
 
-type SearchQuery struct {
-	Query string `json:"query"`
-}
-
 func StartServer(m *ui.SafeModel) {
 	mux := http.NewServeMux()
 	server := &http.Server{

@@ -282,8 +282,8 @@ func StartServer(m *ui.SafeModel) {
 	})
 
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		m.Mu.Lock()
-		defer m.Mu.Unlock()
+		m.Mu.RLock()
+		defer m.Mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
 
 		query := r.URL.Query().Get("q")

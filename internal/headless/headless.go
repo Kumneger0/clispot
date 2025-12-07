@@ -289,7 +289,6 @@ func StartServer(m *ui.SafeModel) {
 			http.Error(w, `{"error":"please provide a search query"}`, http.StatusBadRequest)
 			return
 		}
-		}
 
 		userToken := m.GetUserToken()
 		if userToken == nil {

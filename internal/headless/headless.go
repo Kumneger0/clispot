@@ -214,7 +214,7 @@ func StartServer(m *ui.SafeModel) {
 			savedTracks, err := spotify.GetUserSavedTracks(userToken.AccessToken)
 			if err != nil {
 				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
+				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)
 				return
 			}
 

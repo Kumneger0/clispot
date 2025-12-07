@@ -14,9 +14,9 @@ import (
 )
 
 type UserLibrary struct {
-	// LikedSongs         []types.SavedTrack `json:"likedSongs"`
 	Playlist           []types.Playlist `json:"playlist"`
 	UserFollowedArtist []types.Artist   `json:"artist"`
+	Album              []types.Album    `json:"album"`
 }
 
 type TracksType string
@@ -24,6 +24,8 @@ type TracksType string
 const (
 	PlaylistType   TracksType = "playlist"
 	FollowedArtist TracksType = "followed_artist"
+	LikedSongs     TracksType = "saved_tracks"
+	AlbumTracks    TracksType = "album_tracks"
 )
 
 type TracksResponse struct {
@@ -35,6 +37,10 @@ type PlayRequestBodyType struct {
 	TrackName string   `json:"name"`
 	Artists   []string `json:"artists"`
 	AlbumName string   `json:"album"`
+}
+
+type SearchQuery struct {
+	Query string `json:"query"`
 }
 
 func StartServer(m *ui.SafeModel) {
@@ -84,9 +90,28 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
+		albums, err := spotify.GetUserSavedAlbums(userToken.AccessToken)
+		if err != nil {
+			slog.Error("GetUserSavedAlbums failed: " + err.Error())
+			http.Error(w, `{"error":"failed to fetch albums"}`, http.StatusInternalServerError)
+			return
+		}
+		if albums == nil {
+			slog.Error("GetUserSavedAlbums returned nil")
+			http.Error(w, `{"error":"no album data returned"}`, http.StatusInternalServerError)
+			return
+		}
+
+		var savedAlbums []types.Album
+
+		for _, album := range albums.Items {
+			savedAlbums = append(savedAlbums, album.Album)
+		}
+
 		userLibrary := &UserLibrary{
 			Playlist:           userPlaylist.Items,
 			UserFollowedArtist: followedArtists.Artists.Items,
+			Album:              savedAlbums,
 		}
 
 		data, err := json.Marshal(userLibrary)
@@ -185,7 +210,115 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
+		if TracksType(queryType) == LikedSongs {
+			savedTracks, err := spotify.GetUserSavedTracks(userToken.AccessToken)
+			if err != nil {
+				slog.Error(err.Error())
+				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
+				return
+			}
+
+			var tracks []*types.PlaylistTrackObject
+			for _, item := range savedTracks.Items {
+				tracks = append(tracks, &types.PlaylistTrackObject{
+					AddedAt: "",
+					AddedBy: nil,
+					IsLocal: false,
+					Track:   item.Track,
+				})
+			}
+
+			resp := &TracksResponse{Tracks: tracks}
+			data, err := json.Marshal(resp)
+			if err != nil {
+				slog.Error(err.Error())
+				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+			_, err = w.Write(data)
+			if err != nil {
+				slog.Error(err.Error())
+			}
+			return
+		}
+
+		if TracksType(queryType) == AlbumTracks {
+			albumTracks, err := spotify.GetAlbumTracks(userToken.AccessToken, id)
+			if err != nil {
+				slog.Error(err.Error())
+				http.Error(w, `{"error":"failed to fetch album tracks"}`, http.StatusInternalServerError)
+				return
+			}
+
+			var trackObject []*types.PlaylistTrackObject
+			for _, item := range albumTracks.Items {
+				trackObject = append(trackObject, &types.PlaylistTrackObject{
+					AddedAt: "",
+					AddedBy: nil,
+					IsLocal: false,
+					Track:   item,
+				})
+			}
+
+			resp := &TracksResponse{Tracks: trackObject}
+			data, err := json.Marshal(resp)
+			if err != nil {
+				slog.Error(err.Error())
+				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+			_, err = w.Write(data)
+			if err != nil {
+				slog.Error(err.Error())
+			}
+			return
+		}
+
 		http.Error(w, `{"error":"unknown type"}`, http.StatusBadRequest)
+	})
+
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		m.Mu.Lock()
+		defer m.Mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+
+		query := r.URL.Query().Get("q")
+
+		if query == "" {
+			slog.Error("query is empty")
+			http.Error(w, `{"error":"please provide a search query"}`, http.StatusNotFound)
+			return
+		}
+
+		userToken := m.GetUserToken()
+		if userToken == nil {
+			slog.Error("failed to get userToken")
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+
+		searchResults, err := spotify.Search(userToken.AccessToken, query)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)
+			return
+		}
+		data, err := json.Marshal(searchResults)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(data)
+		if err != nil {
+			slog.Error(err.Error())
+		}
 	})
 
 	mux.HandleFunc("/player", func(w http.ResponseWriter, r *http.Request) {
@@ -334,7 +467,7 @@ func StartServer(m *ui.SafeModel) {
 		}
 	})
 
-	fmt.Println("🚀 Server started at http://localhost:8282")
+	fmt.Println("Server started at http://localhost:8282")
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error(err.Error())
 		fmt.Printf("❌ Server error: %v\n", err)

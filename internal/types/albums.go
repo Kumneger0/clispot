@@ -97,3 +97,13 @@ type Image struct {
 	Height int    `json:"height"`
 	Width  int    `json:"width"`
 }
+
+type AlbumTracksResponse struct {
+	Href     string  `json:"href"`
+	Limit    int     `json:"limit"`
+	Next     string  `json:"next"`
+	Offset   int     `json:"offset"`
+	Previous string  `json:"previous"`
+	Total    int     `json:"total"`
+	Items    []Track `json:"items"`
+}

@@ -38,11 +38,13 @@ const (
 	//tracks base url
 	tracksBase = "https://api.spotify.com/v1/tracks/"
 	//user profile base url
-	userProfileBase     = "https://api.spotify.com/v1/me/"
-	artistsURL          = "https://api.spotify.com/v1/artists/"
-	followedArtistURL   = "https://api.spotify.com/v1/me/following?type=artist"
-	userSavedTrackURL   = "https://api.spotify.com/v1/me/tracks"
-	checkUserSavedTrack = "https://api.spotify.com/v1/me/tracks/contains?ids="
+	userProfileBase        = "https://api.spotify.com/v1/me/"
+	artistsURL             = "https://api.spotify.com/v1/artists/"
+	followedArtistURL      = "https://api.spotify.com/v1/me/following?type=artist"
+	userSavedTrackURL      = "https://api.spotify.com/v1/me/tracks"
+	checkUserSavedTrack    = "https://api.spotify.com/v1/me/tracks/contains?ids="
+	userSavedAlbumsBaseURL = "https://api.spotify.com/v1/me/albums"
+	albumTracksURL         = "https://api.spotify.com/v1/albums"
 )
 
 var (
@@ -62,11 +64,21 @@ type APIURLS interface {
 	GetSearchURL(q string) string
 	GetUserSavedTrackURL() string
 	GetCheckUserSavedTrackURL() string
+	GetUserSavedAlbumsBaseURL() string
+	GetAlbumTracksURL(albumID string) string
 }
 
 type apiURL struct{}
 
 var APIURL APIURLS = apiURL{}
+
+func (a apiURL) GetUserSavedAlbumsBaseURL() string {
+	return userSavedAlbumsBaseURL
+}
+
+func (a apiURL) GetAlbumTracksURL(albumID string) string {
+	return albumTracksURL + "/" + albumID + "/tracks"
+}
 
 func (a apiURL) GetCheckUserSavedTrackURL() string {
 	return checkUserSavedTrack
@@ -80,7 +92,7 @@ func (a apiURL) GetPlaylistBaseURL() string {
 	return playlistBase
 }
 func (a apiURL) GetSearchURL(q string) string {
-	searchType := "track,artist,playlist"
+	searchType := "track,artist,playlist,album"
 	limit := 30
 	market := "US"
 	offset := 0
@@ -133,6 +145,48 @@ func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader s
 	}
 	req.Header.Add("Authorization", authorizationHeader)
 	return http.DefaultClient.Do(req)
+}
+
+func GetAlbumTracks(accessToken string, albumID string) (*types.AlbumTracksResponse, error) {
+	authorizationHeader := "Bearer " + accessToken
+
+	resp, err := makeRequest("GET", APIURL.GetAlbumTracksURL(albumID), authorizationHeader, nil)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var albumTracks types.AlbumTracksResponse
+	if err := json.NewDecoder(resp.Body).Decode(&albumTracks); err != nil {
+		return nil, err
+	}
+
+	return &albumTracks, nil
+}
+
+func GetUserSavedAlbums(accessToken string) (*types.SavedAlbumsResponse, error) {
+	authorizationHeader := "Bearer " + accessToken
+
+	resp, err := makeRequest("GET", APIURL.GetUserSavedAlbumsBaseURL(), authorizationHeader, nil)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var savedAlbums types.SavedAlbumsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&savedAlbums); err != nil {
+		return nil, err
+	}
+
+	return &savedAlbums, nil
 }
 
 func CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error) {
@@ -222,6 +276,7 @@ func Search(accessToken string, query string) (*types.SearchResponse, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
+
 	var searchResponse *types.SearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&searchResponse); err != nil {
 		return nil, err

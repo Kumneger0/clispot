@@ -11,7 +11,7 @@ import (
 	"github.com/kumneger0/clispot/internal/ui"
 )
 
-func newProp(value interface{}, cb func(*prop.Change) *dbus.Error) *prop.Prop {
+func newProp(value any, cb func(*prop.Change) *dbus.Error) *prop.Prop {
 	return &prop.Prop{
 		Value:    value,
 		Writable: true,
@@ -20,7 +20,7 @@ func newProp(value interface{}, cb func(*prop.Change) *dbus.Error) *prop.Prop {
 	}
 }
 
-func getPlayer(headless bool) map[string]*prop.Prop {
+func getPlayer() map[string]*prop.Prop {
 	return map[string]*prop.Prop{
 		"PlaybackStatus": newProp("paused", nil),
 		"Rate":           newProp(1.0, nil),
@@ -29,8 +29,8 @@ func getPlayer(headless bool) map[string]*prop.Prop {
 		"Position":       newProp(int64(0), nil),
 		"MinimumRate":    newProp(1.0, nil),
 		"MaximumRate":    newProp(1.0, nil),
-		"CanGoNext":      newProp(!headless, nil),
-		"CanGoPrevious":  newProp(!headless, nil),
+		"CanGoNext":      newProp(true, nil),
+		"CanGoPrevious":  newProp(true, nil),
 		"CanPlay":        newProp(true, nil),
 		"CanPause":       newProp(true, nil),
 		"CanSeek":        newProp(false, nil),
@@ -80,7 +80,7 @@ func (m *MediaPlayer2) PlayPause() *dbus.Error {
 	return nil
 }
 
-func GetDbusInstance(headless bool) (*ui.Instance, *chan types.DBusMessage, error) {
+func GetDbusInstance() (*ui.Instance, *chan types.DBusMessage, error) {
 	if runtime.GOOS != "linux" {
 		return nil, nil, nil
 	}
@@ -108,7 +108,7 @@ func GetDbusInstance(headless bool) (*ui.Instance, *chan types.DBusMessage, erro
 		"/org/mpris/MediaPlayer2",
 		map[string]map[string]*prop.Prop{
 			"org.mpris.MediaPlayer2":        mediaPlayer2,
-			"org.mpris.MediaPlayer2.Player": getPlayer(headless),
+			"org.mpris.MediaPlayer2.Player": getPlayer(),
 		},
 	)
 	if err != nil {

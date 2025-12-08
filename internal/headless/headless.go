@@ -73,6 +73,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		for msg := range *dbusMessageChan {
 			switch msg.MessageType {
 			case types.NextTrack:
+				if len(musicQueue.Tracks) == 0 {
+					continue
+				}
 				nextTrackIndex := musicQueue.CurrentIndex + 1
 				if nextTrackIndex >= len(musicQueue.Tracks) {
 					nextTrackIndex = 0

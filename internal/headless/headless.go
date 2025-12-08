@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/kumneger0/clispot/internal/types"
@@ -66,11 +67,14 @@ func NewMusicQueue() *Queue {
 
 func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 	musicQueue := NewMusicQueue()
+	var mqMu sync.Mutex
+
 	go func() {
 		if dbusMessageChan == nil {
 			return
 		}
 		for msg := range *dbusMessageChan {
+			mqMu.Lock()
 			switch msg.MessageType {
 			case types.NextTrack:
 				if len(musicQueue.Tracks) == 0 {
@@ -107,6 +111,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 					m.Model = &model
 				}
 			}
+			mqMu.Unlock()
 		}
 	}()
 

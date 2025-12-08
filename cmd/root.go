@@ -203,7 +203,7 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
-	ins, messageChan, err := mpris.GetDbusInstance(isHeadlessMode)
+	ins, messageChan, err := mpris.GetDbusInstance()
 
 	if err != nil {
 		slog.Error(err.Error())

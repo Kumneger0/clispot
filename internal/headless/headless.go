@@ -37,18 +37,66 @@ type PlayRequestBodyType struct {
 	AlbumName string   `json:"album"`
 	//this is a flag that whether the user skips the track or not
 	// b/c during cache mode if the skip we need to remove the track from the cache to prevent saving it b/c it may not be fully downloaded
-	IsSkip bool `json:"isSkip"`
+	IsSkip bool   `json:"isSkip"`
+	Queue  *Queue `json:"queue"`
+}
+
+type Queue struct {
+	Tracks       []*types.PlaylistTrackObject `json:"tracks"`
+	CurrentIndex int                          `json:"currentIndex"`
+}
+
+func (h *Queue) AddTrack(track *types.PlaylistTrackObject) {
+	h.Tracks = append(h.Tracks, track)
+}
+
+func (h *Queue) RemoveTrack(index int) {
+	h.Tracks = append(h.Tracks[:index], h.Tracks[index+1:]...)
+}
+
+func NewMusicQueue() *Queue {
+	return &Queue{
+		Tracks:       []*types.PlaylistTrackObject{},
+		CurrentIndex: 0,
+	}
 }
 
 func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
+	musicQueue := NewMusicQueue()
 	go func() {
 		if dbusMessageChan == nil {
 			return
 		}
 		for msg := range *dbusMessageChan {
 			switch msg.MessageType {
+			case types.NextTrack:
+				nextTrackIndex := musicQueue.CurrentIndex + 1
+				if nextTrackIndex >= len(musicQueue.Tracks) {
+					nextTrackIndex = 0
+				}
+				musicQueue.CurrentIndex = nextTrackIndex
+				nextTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
+				if nextTrack != nil {
+					//the code this in this function is only excuted when user clicks on
+					// control button on his/her desktop environment
+					//which means it is skip
+					model, _ := m.PlaySelectedMusic(*nextTrack, true)
+					m.Model = &model
+				}
 			case types.PlayPause:
-				m.HandleMusicPausePlay()
+				model, _ := m.HandleMusicPausePlay()
+				m.Model = &model
+			case types.PreviousTrack:
+				prevTrackIndex := musicQueue.CurrentIndex - 1
+				if prevTrackIndex < 0 {
+					prevTrackIndex = len(musicQueue.Tracks) - 1
+				}
+				musicQueue.CurrentIndex = prevTrackIndex
+				prevTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
+				if prevTrack != nil {
+					model, _ := m.PlaySelectedMusic(*prevTrack, false)
+					m.Model = &model
+				}
 			}
 		}
 	}()
@@ -389,6 +437,10 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
+		if reqBody.Queue != nil {
+			musicQueue = reqBody.Queue
+		}
+
 		userToken := m.GetUserToken()
 		if userToken == nil {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
@@ -470,8 +522,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 				if m.PlayerProcess == nil || m.PlayerProcess.ByteCounterReader == nil {
 					fmt.Fprintf(w, "data: 0\n\n")
 				} else {
+					currentIndex := musicQueue.CurrentIndex
 					seconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
-					msg, _ := json.Marshal(map[string]float64{"seconds": seconds})
+					msg, _ := json.Marshal(map[string]any{"seconds": seconds, "currentIndex": currentIndex})
 					fmt.Fprintf(w, "data: %s\n\n", msg)
 				}
 				m.Mu.RUnlock()

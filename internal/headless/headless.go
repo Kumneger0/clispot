@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
 	"github.com/kumneger0/clispot/internal/youtube"
@@ -62,7 +61,7 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
-		userPlaylist, err := spotify.GetUserPlaylists(userToken.AccessToken)
+		userPlaylist, err := m.SpotifyClient.GetUserPlaylists(userToken.AccessToken)
 		if err != nil {
 			slog.Error("GetUserPlaylists failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch user playlists"}`, http.StatusInternalServerError)
@@ -74,7 +73,7 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
-		followedArtists, err := spotify.GetFollowedArtist(userToken.AccessToken)
+		followedArtists, err := m.SpotifyClient.GetFollowedArtist(userToken.AccessToken)
 		if err != nil {
 			slog.Error("GetFollowedArtist failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch followed artists"}`, http.StatusInternalServerError)
@@ -86,7 +85,7 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
-		albums, err := spotify.GetUserSavedAlbums(userToken.AccessToken)
+		albums, err := m.SpotifyClient.GetUserSavedAlbums(userToken.AccessToken)
 		if err != nil {
 			slog.Error("GetUserSavedAlbums failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch albums"}`, http.StatusInternalServerError)
@@ -149,7 +148,7 @@ func StartServer(m *ui.SafeModel) {
 		}
 
 		if TracksType(queryType) == FollowedArtist {
-			artistSongs, err := spotify.GetArtistsTopTrackURL(userToken.AccessToken, id)
+			artistSongs, err := m.SpotifyClient.GetArtistsTopTrackURL(userToken.AccessToken, id)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch artist tracks"}`, http.StatusInternalServerError)
@@ -183,7 +182,7 @@ func StartServer(m *ui.SafeModel) {
 		}
 
 		if TracksType(queryType) == PlaylistType {
-			playlistItems, err := spotify.GetPlaylistItems(id, userToken.AccessToken)
+			playlistItems, err := m.SpotifyClient.GetPlaylistItems(id, userToken.AccessToken)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
@@ -207,7 +206,7 @@ func StartServer(m *ui.SafeModel) {
 		}
 
 		if TracksType(queryType) == LikedSongs {
-			savedTracks, err := spotify.GetUserSavedTracks(userToken.AccessToken)
+			savedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)
@@ -241,7 +240,7 @@ func StartServer(m *ui.SafeModel) {
 		}
 
 		if TracksType(queryType) == AlbumTracks {
-			albumTracks, err := spotify.GetAlbumTracks(userToken.AccessToken, id)
+			albumTracks, err := m.SpotifyClient.GetAlbumTracks(userToken.AccessToken, id)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch album tracks"}`, http.StatusInternalServerError)
@@ -297,7 +296,7 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
-		searchResults, err := spotify.Search(userToken.AccessToken, query)
+		searchResults, err := m.SpotifyClient.Search(userToken.AccessToken, query)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)

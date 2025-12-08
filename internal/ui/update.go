@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"math/rand"
 	"strings"
@@ -262,7 +261,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				} else {
 					shouldRemove = false
 				}
-				err := spotify.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.Track.ID}, shouldRemove)
+				err := m.SpotifyClient.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.Track.ID}, shouldRemove)
 				if err != nil {
 					slog.Error(err.Error())
 				}
@@ -499,7 +498,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 		loadingCmd := SendLoadingCmd()
 		searchingCmd := func() tea.Msg {
-			searchResult, err := spotify.Search(userToken.AccessToken, query)
+			searchResult, err := m.SpotifyClient.Search(userToken.AccessToken, query)
 			return types.SpotifySearchResultMsg{
 				Result: searchResult,
 				Err:    err,
@@ -518,13 +517,13 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		loadingCmd := SendLoadingCmd()
 		switch selectedItem := m.Playlist.SelectedItem().(type) {
 		case types.Playlist:
-			cmd := getPlaylistItems(userToken.AccessToken, selectedItem.ID)
+			cmd := m.getPlaylistItems(userToken.AccessToken, selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
 		case types.Artist:
-			cmd := getArtistTracks(userToken.AccessToken, selectedItem.ID)
+			cmd := m.getArtistTracks(userToken.AccessToken, selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
 		case spotify.UserSavedTracksListItem:
-			cmd := getUserSavedTracks(userToken.AccessToken)
+			cmd := m.getUserSavedTracks(userToken.AccessToken)
 			return m, tea.Batch(loadingCmd, cmd)
 		}
 	}
@@ -535,7 +534,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			return m, nil
 		}
 		loadingCmd := SendLoadingCmd()
-		cmd := getArtistTracks(userToken.AccessToken, selectedItem.ID)
+		cmd := m.getArtistTracks(userToken.AccessToken, selectedItem.ID)
 		m.MainViewMode = NormalMode
 		return m, tea.Batch(cmd, loadingCmd)
 	}
@@ -547,7 +546,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		}
 
 		loadingCmd := SendLoadingCmd()
-		cmd := getPlaylistItems(userToken.AccessToken, selectedItem.ID)
+		cmd := m.getPlaylistItems(userToken.AccessToken, selectedItem.ID)
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultTrack {
@@ -561,9 +560,9 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 	return m, nil
 }
 
-func getArtistTracks(accessToken, artistID string) tea.Cmd {
+func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 	return func() tea.Msg {
-		artistSongs, err := spotify.GetArtistsTopTrackURL(accessToken, artistID)
+		artistSongs, err := m.SpotifyClient.GetArtistsTopTrackURL(accessToken, artistID)
 		if err != nil {
 			slog.Error(err.Error())
 			return types.UpdatePlaylistMsg{
@@ -587,9 +586,9 @@ func getArtistTracks(accessToken, artistID string) tea.Cmd {
 	}
 }
 
-func getUserSavedTracks(accessToken string) tea.Cmd {
+func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 	return func() tea.Msg {
-		savedTracks, err := spotify.GetUserSavedTracks(accessToken)
+		savedTracks, err := m.SpotifyClient.GetUserSavedTracks(accessToken)
 		if err != nil {
 			fmt.Println("err", err.Error())
 			slog.Error(err.Error())
@@ -614,9 +613,9 @@ func getUserSavedTracks(accessToken string) tea.Cmd {
 	}
 }
 
-func getPlaylistItems(accessToken, playlistID string) tea.Cmd {
+func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 	return func() tea.Msg {
-		playlistItems, err := spotify.GetPlaylistItems(playlistID, accessToken)
+		playlistItems, err := m.SpotifyClient.GetPlaylistItems(playlistID, accessToken)
 		return types.UpdatePlaylistMsg{
 			Playlist: playlistItems.Items,
 			Err:      err,
@@ -676,7 +675,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		)
 
 		if dbusErr != nil {
-			log.Println(dbusErr, metadata)
+			slog.Error(dbusErr.Error())
 		}
 
 		dbusErr = m.DBusConn.Props.Set("org.mpris.MediaPlayer2.Player",
@@ -685,7 +684,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		)
 
 		if dbusErr != nil {
-			log.Println(dbusErr, metadata)
+			slog.Error(dbusErr.Error())
 		}
 	}
 	likedCmd := func() tea.Msg {
@@ -693,7 +692,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		if userToken == nil {
 			return nil
 		}
-		response, err := spotify.CheckUserSavedTrack(userToken.AccessToken, selectedMusic.Track.ID)
+		response, err := m.SpotifyClient.CheckUserSavedTrack(userToken.AccessToken, selectedMusic.Track.ID)
 		if err != nil {
 			return types.CheckUserSavedTrackResponseMsg{
 				Saved: false,

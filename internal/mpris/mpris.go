@@ -20,20 +20,22 @@ func newProp(value interface{}, cb func(*prop.Change) *dbus.Error) *prop.Prop {
 	}
 }
 
-var player = map[string]*prop.Prop{
-	"PlaybackStatus": newProp("paused", nil),
-	"Rate":           newProp(1.0, nil),
-	"Metadata":       newProp(map[string]interface{}{}, nil),
-	"Volume":         newProp(float64(100), nil),
-	"Position":       newProp(int64(0), nil),
-	"MinimumRate":    newProp(1.0, nil),
-	"MaximumRate":    newProp(1.0, nil),
-	"CanGoNext":      newProp(true, nil),
-	"CanGoPrevious":  newProp(true, nil),
-	"CanPlay":        newProp(true, nil),
-	"CanPause":       newProp(true, nil),
-	"CanSeek":        newProp(false, nil),
-	"CanControl":     newProp(true, nil),
+func getPlayer(headless bool) map[string]*prop.Prop {
+	return map[string]*prop.Prop{
+		"PlaybackStatus": newProp("paused", nil),
+		"Rate":           newProp(1.0, nil),
+		"Metadata":       newProp(map[string]interface{}{}, nil),
+		"Volume":         newProp(float64(100), nil),
+		"Position":       newProp(int64(0), nil),
+		"MinimumRate":    newProp(1.0, nil),
+		"MaximumRate":    newProp(1.0, nil),
+		"CanGoNext":      newProp(!headless, nil),
+		"CanGoPrevious":  newProp(!headless, nil),
+		"CanPlay":        newProp(true, nil),
+		"CanPause":       newProp(true, nil),
+		"CanSeek":        newProp(false, nil),
+		"CanControl":     newProp(true, nil),
+	}
 }
 
 var mediaPlayer2 = map[string]*prop.Prop{
@@ -78,7 +80,7 @@ func (m *MediaPlayer2) PlayPause() *dbus.Error {
 	return nil
 }
 
-func GetDbusInstance() (*ui.Instance, *chan types.DBusMessage, error) {
+func GetDbusInstance(headless bool) (*ui.Instance, *chan types.DBusMessage, error) {
 	if runtime.GOOS != "linux" {
 		return nil, nil, nil
 	}
@@ -106,7 +108,7 @@ func GetDbusInstance() (*ui.Instance, *chan types.DBusMessage, error) {
 		"/org/mpris/MediaPlayer2",
 		map[string]map[string]*prop.Prop{
 			"org.mpris.MediaPlayer2":        mediaPlayer2,
-			"org.mpris.MediaPlayer2.Player": player,
+			"org.mpris.MediaPlayer2.Player": getPlayer(headless),
 		},
 	)
 	if err != nil {

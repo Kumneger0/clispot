@@ -9,7 +9,6 @@ import (
 
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
-	"github.com/kumneger0/clispot/internal/youtube"
 )
 
 type UserLibrary struct {
@@ -36,9 +35,24 @@ type PlayRequestBodyType struct {
 	TrackName string   `json:"name"`
 	Artists   []string `json:"artists"`
 	AlbumName string   `json:"album"`
+	//this is a flag that whether the user skips the track or not
+	// b/c during cache mode if the skip we need to remove the track from the cache to prevent saving it b/c it may not be fully downloaded
+	IsSkip bool `json:"isSkip"`
 }
 
-func StartServer(m *ui.SafeModel) {
+func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
+	go func() {
+		if dbusMessageChan == nil {
+			return
+		}
+		for msg := range *dbusMessageChan {
+			switch msg.MessageType {
+			case types.PlayPause:
+				m.HandleMusicPausePlay()
+			}
+		}
+	}()
+
 	mux := http.NewServeMux()
 	server := &http.Server{
 		Addr:    ":8282",
@@ -375,29 +389,33 @@ func StartServer(m *ui.SafeModel) {
 			return
 		}
 
-		if m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying() {
-			err := m.PlayerProcess.Close(true)
-			if err != nil {
-				slog.Error(err.Error())
-			}
-		}
-
-		process, err := youtube.SearchAndDownloadMusic(
-			reqBody.TrackName,
-			reqBody.AlbumName,
-			reqBody.Artists,
-			reqBody.TrackID,
-			m.PlayerProcess == nil,
-		)
-
-		if err != nil {
-			slog.Error("SearchAndDownloadMusic failed: " + err.Error())
-			http.Error(w, `{"error":"failed to play track"}`, http.StatusInternalServerError)
+		userToken := m.GetUserToken()
+		if userToken == nil {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 
-		m.PlayerProcess = process
+		track, err := m.SpotifyClient.GetTrack(reqBody.TrackID, userToken.AccessToken)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
+			return
+		}
 
+		if track == nil {
+			slog.Error("track is nil")
+			http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
+			return
+		}
+
+		model, _ := m.PlaySelectedMusic(types.PlaylistTrackObject{
+			Track:   *track,
+			AddedAt: "",
+			AddedBy: nil,
+			IsLocal: false,
+		}, reqBody.IsSkip)
+
+		m.Model = &model
 		resp := map[string]any{
 			"status":  "ok",
 			"message": "track is now playing",

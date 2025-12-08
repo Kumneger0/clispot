@@ -197,7 +197,13 @@ func runRoot(cmd *cobra.Command) error {
 		}
 	}
 
-	ins, messageChan, err := mpris.GetDbusInstance()
+	isHeadlessMode, err := cmd.Flags().GetBool("headless")
+
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
+	ins, messageChan, err := mpris.GetDbusInstance(isHeadlessMode)
 
 	if err != nil {
 		slog.Error(err.Error())
@@ -218,17 +224,11 @@ func runRoot(cmd *cobra.Command) error {
 		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL()),
 	}
 
-	isHeadlessMode, err := cmd.Flags().GetBool("headless")
-
-	if err != nil {
-		slog.Error(err.Error())
-	}
-
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
 		}
-		headless.StartServer(&safeModel)
+		headless.StartServer(&safeModel, messageChan)
 		return nil
 	}
 

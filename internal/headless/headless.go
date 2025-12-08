@@ -51,6 +51,9 @@ func (h *Queue) AddTrack(track *types.PlaylistTrackObject) {
 }
 
 func (h *Queue) RemoveTrack(index int) {
+	if index < 0 || index >= len(h.Tracks) {
+		return
+	}
 	h.Tracks = append(h.Tracks[:index], h.Tracks[index+1:]...)
 }
 

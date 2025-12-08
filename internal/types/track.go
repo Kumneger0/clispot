@@ -1,6 +1,6 @@
 package types // nolint:revive
 
-type ArtistTopTracks struct {
+type ArtistsTopTrackResponse struct {
 	Tracks []Track `json:"tracks"`
 }
 

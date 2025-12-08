@@ -28,16 +28,12 @@ func (userSavedTracksListItem UserSavedTracksListItem) FilterValue() string {
 type UserTopItem string
 
 const (
-	artist UserTopItem = "artists"
-	track  UserTopItem = "tracks"
+	track UserTopItem = "tracks"
 )
 
 const (
-	//playlist base url
-	playlistBase = "https://api.spotify.com/v1/me/playlists/"
-	//tracks base url
-	tracksBase = "https://api.spotify.com/v1/tracks/"
-	//user profile base url
+	playlistBase           = "https://api.spotify.com/v1/me/playlists/"
+	tracksBase             = "https://api.spotify.com/v1/tracks/"
 	userProfileBase        = "https://api.spotify.com/v1/me/"
 	artistsURL             = "https://api.spotify.com/v1/artists/"
 	followedArtistURL      = "https://api.spotify.com/v1/me/following?type=artist"
@@ -66,11 +62,23 @@ type APIURLS interface {
 	GetCheckUserSavedTrackURL() string
 	GetUserSavedAlbumsBaseURL() string
 	GetAlbumTracksURL(albumID string) string
+	GetUserPlaylistsBaseURL() string
+	GetTrackURL(trackID string) string
 }
 
 type apiURL struct{}
 
-var APIURL APIURLS = apiURL{}
+func NewAPIURL() APIURLS {
+	return apiURL{}
+}
+
+func (a apiURL) GetTrackURL(trackID string) string {
+	return tracksBase + trackID
+}
+
+func (a apiURL) GetUserPlaylistsBaseURL() string {
+	return playlistBase
+}
 
 func (a apiURL) GetUserSavedAlbumsBaseURL() string {
 	return userSavedAlbumsBaseURL
@@ -147,10 +155,35 @@ func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader s
 	return http.DefaultClient.Do(req)
 }
 
-func GetAlbumTracks(accessToken string, albumID string) (*types.AlbumTracksResponse, error) {
+type APIClient interface {
+	GetAlbumTracks(accessToken string, albumID string) (*types.AlbumTracksResponse, error)
+	GetTrack(accessToken string, trackID string) (*types.Track, error)
+	GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error)
+	GetUserSavedAlbums(accessToken string) (*types.SavedAlbumsResponse, error)
+	CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error)
+	GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error)
+	GetArtistsTopTrack(accessToken string, artistID string) (*types.ArtistsTopTrackResponse, error)
+	GetSearchResults(accessToken string, query string) (*types.SearchResponse, error)
+	GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error)
+	GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error)
+	SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemove bool) error
+	GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error)
+}
+
+type APIClientImpl struct {
+	apiURL APIURLS
+}
+
+func NewAPIClient(apiURL APIURLS) *APIClientImpl {
+	return &APIClientImpl{
+		apiURL: apiURL,
+	}
+}
+
+func (a *APIClientImpl) GetAlbumTracks(accessToken string, albumID string) (*types.AlbumTracksResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 
-	resp, err := makeRequest("GET", APIURL.GetAlbumTracksURL(albumID), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetAlbumTracksURL(albumID), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -168,10 +201,10 @@ func GetAlbumTracks(accessToken string, albumID string) (*types.AlbumTracksRespo
 	return &albumTracks, nil
 }
 
-func GetUserSavedAlbums(accessToken string) (*types.SavedAlbumsResponse, error) {
+func (a *APIClientImpl) GetUserSavedAlbums(accessToken string) (*types.SavedAlbumsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 
-	resp, err := makeRequest("GET", APIURL.GetUserSavedAlbumsBaseURL(), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetUserSavedAlbumsBaseURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -189,10 +222,10 @@ func GetUserSavedAlbums(accessToken string) (*types.SavedAlbumsResponse, error) 
 	return &savedAlbums, nil
 }
 
-func CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error) {
+func (a *APIClientImpl) CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error) {
 	authorizationHeader := "Bearer " + accessToken
 
-	resp, err := makeRequest("GET", APIURL.GetCheckUserSavedTrackURL()+trackID, authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetCheckUserSavedTrackURL()+trackID, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -214,7 +247,7 @@ type SaveTrackForCurrentUserRequest struct {
 	IDs []string `json:"ids"`
 }
 
-func SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemove bool) error {
+func (a *APIClientImpl) SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemove bool) error {
 	authorizationHeader := "Bearer " + accessToken
 
 	reqBody := SaveTrackForCurrentUserRequest{
@@ -233,7 +266,7 @@ func SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemo
 		method = "PUT"
 	}
 
-	resp, err := makeRequest(method, userSavedTrackURL, authorizationHeader, body)
+	resp, err := makeRequest(method, a.apiURL.GetUserSavedTrackURL(), authorizationHeader, body)
 	if err != nil {
 		return err
 	}
@@ -246,11 +279,11 @@ func SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemo
 	return nil
 }
 
-func GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error) {
+func (a *APIClientImpl) GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error) {
 	authorizationHeader := "Bearer " + accessToken
 	params := url.Values{}
 	params.Add("limit", "30")
-	resp, err := makeRequest("GET", APIURL.GetUserSavedTrackURL()+"?"+params.Encode(), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetUserSavedTrackURL()+"?"+params.Encode(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -265,9 +298,9 @@ func GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error) {
 	return userSavedTracks, nil
 }
 
-func Search(accessToken string, query string) (*types.SearchResponse, error) {
+func (a *APIClientImpl) Search(accessToken string, query string) (*types.SearchResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetSearchURL(query), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetSearchURL(query), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -284,9 +317,9 @@ func Search(accessToken string, query string) (*types.SearchResponse, error) {
 	return searchResponse, nil
 }
 
-func GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistTopTracks, error) {
+func (a *APIClientImpl) GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistsTopTrackResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetArtistsTopTrackURL(artistID), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetArtistsTopTrackURL(artistID), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -295,16 +328,16 @@ func GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistTo
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-	var artistTopTracks *types.ArtistTopTracks
+	var artistTopTracks *types.ArtistsTopTrackResponse
 	if err := json.NewDecoder(resp.Body).Decode(&artistTopTracks); err != nil {
 		return nil, err
 	}
 	return artistTopTracks, nil
 }
 
-func GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
+func (a *APIClientImpl) GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetUserTopItems(track), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetUserTopItems(track), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -320,9 +353,9 @@ func GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
 	return userFollowedArtist, nil
 }
 
-func GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error) {
+func (a *APIClientImpl) GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", APIURL.GetFollowedArtistURL(), authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetFollowedArtistURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -338,9 +371,9 @@ func GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, e
 	return userFollowedArtist, nil
 }
 
-func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) {
+func (a *APIClientImpl) GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", playlistBase, authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetUserPlaylistsBaseURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -356,9 +389,9 @@ func GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) 
 	return playlists, nil
 }
 
-func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistItemsResponse, error) {
+func (a *APIClientImpl) GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	playlistItemsURL := APIURL.GetPlaylistItems(playlistID)
+	playlistItemsURL := a.apiURL.GetPlaylistItems(playlistID)
 	resp, err := makeRequest("GET", playlistItemsURL, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
@@ -379,10 +412,11 @@ func GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistIte
 	return featuredPlaylist, nil
 }
 
-func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
+func (a *APIClientImpl) GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", userProfileBase, authorizationHeader, nil)
+	resp, err := makeRequest("GET", a.apiURL.GetUserProfileBaseURL(), authorizationHeader, nil)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -399,9 +433,10 @@ func GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	return &userProfile, nil
 }
 
-func GetTrack(trackID string, accessToken string) (*types.Track, error) {
+func (a *APIClientImpl) GetTrack(trackID string, accessToken string) (*types.Track, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", tracksBase, authorizationHeader, nil)
+	trackURL := a.apiURL.GetTrackURL(trackID)
+	resp, err := makeRequest("GET", trackURL, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err

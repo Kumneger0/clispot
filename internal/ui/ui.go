@@ -72,6 +72,7 @@ type Model struct {
 	PlayerSectionHeight int
 	Search              textinput.Model
 	MusicQueueList      list.Model
+	SpotifyClient       *spotify.APIClientImpl
 	DBusConn            *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
@@ -100,7 +101,7 @@ func (m Model) Init() tea.Cmd {
 	userTokenInfo := m.GetUserToken()
 	if userTokenInfo != nil {
 		cmd = func() tea.Msg {
-			followedArtist, err := spotify.GetFollowedArtist(userTokenInfo.AccessToken)
+			followedArtist, err := m.SpotifyClient.GetFollowedArtist(userTokenInfo.AccessToken)
 			if err != nil {
 				return nil
 			}

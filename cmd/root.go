@@ -212,9 +212,10 @@ func runRoot(cmd *cobra.Command) error {
 			}
 			return token
 		},
-		FocusedOn:    ui.SideView,
-		DBusConn:     ins,
-		MainViewMode: ui.NormalMode,
+		FocusedOn:     ui.SideView,
+		DBusConn:      ins,
+		MainViewMode:  ui.NormalMode,
+		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL()),
 	}
 
 	isHeadlessMode, err := cmd.Flags().GetBool("headless")
@@ -235,7 +236,7 @@ func runRoot(cmd *cobra.Command) error {
 		Name: "Liked songs",
 	}
 
-	userPlayList, err := spotify.GetUserPlaylists(token.AccessToken)
+	userPlayList, err := model.SpotifyClient.GetUserPlaylists(token.AccessToken)
 	if err != nil {
 		slog.Error(err.Error())
 		fmt.Fprintln(os.Stdout, err)

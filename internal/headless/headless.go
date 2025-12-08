@@ -93,6 +93,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 				model, _ := m.HandleMusicPausePlay()
 				m.Model = &model
 			case types.PreviousTrack:
+				if len(musicQueue.Tracks) == 0 {
+					continue
+				}
 				prevTrackIndex := musicQueue.CurrentIndex - 1
 				if prevTrackIndex < 0 {
 					prevTrackIndex = len(musicQueue.Tracks) - 1

@@ -301,6 +301,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, tea.Quit
 	case "tab":
 		return changeFocusMode(&m, false)
+	case "shift+tab":
+		return changeFocusMode(&m, true)
 	case "enter":
 		return m.handleEnterKey()
 	}

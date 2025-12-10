@@ -429,6 +429,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"error":"request body required"}`, http.StatusBadRequest)
 			return
 		}
+
 		defer r.Body.Close()
 
 		var reqBody PlayRequestBodyType
@@ -537,8 +538,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 					fmt.Fprintf(w, "data: 0\n\n")
 				} else {
 					currentIndex := musicQueue.CurrentIndex
+					isPlaying := m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying()
 					seconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
-					msg, _ := json.Marshal(map[string]any{"seconds": seconds, "currentIndex": currentIndex})
+					msg, _ := json.Marshal(map[string]any{"seconds": seconds, "currentIndex": currentIndex, "isPlaying": isPlaying})
 					fmt.Fprintf(w, "data: %s\n\n", msg)
 				}
 				m.Mu.RUnlock()

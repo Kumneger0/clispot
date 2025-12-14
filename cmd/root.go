@@ -106,7 +106,7 @@ func runRoot(cmd *cobra.Command) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 	configFromFile := config.GetUserConfig()
 
-	if !cmd.Flags().Changed("debug-dir") {
+	if !cmd.Flags().Changed("debug-dir") && configFromFile.DebugDir != nil {
 		debugDir = *configFromFile.DebugDir
 	}
 

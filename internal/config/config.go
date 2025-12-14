@@ -18,9 +18,26 @@ type Config struct {
 	HeadlessMode  bool       `json:"headless-mode"`
 }
 
+func GetConfigDir() string {
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" {
+		homeDir, _ := os.UserHomeDir()
+		configDir = filepath.Join(homeDir, ".config")
+	}
+	return filepath.Join(configDir, "clispot")
+}
+
+func GetStateDir() string {
+	stateDir := os.Getenv("XDG_STATE_HOME")
+	if stateDir == "" {
+		homeDir, _ := os.UserHomeDir()
+		stateDir = filepath.Join(homeDir, ".local", "state")
+	}
+	return filepath.Join(stateDir, "clispot")
+}
+
 func GetDefaultConfig() *Config {
-	userHomeDir, _ := os.UserHomeDir()
-	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
+	defaultDebugDir := filepath.Join(GetStateDir(), "logs")
 	return &Config{
 		DebugDir:      &defaultDebugDir,
 		CacheDisabled: true,
@@ -30,8 +47,7 @@ func GetDefaultConfig() *Config {
 }
 
 func GetUserConfig() *Config {
-	userHomeDir, _ := os.UserHomeDir()
-	configPath := filepath.Join(userHomeDir, ".config", "clispot", "config.json")
+	configPath := filepath.Join(GetConfigDir(), "config.json")
 	fileStat, err := os.Stat(configPath)
 	if err != nil {
 		return GetDefaultConfig()

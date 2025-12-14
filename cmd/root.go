@@ -210,9 +210,8 @@ func runRoot(cmd *cobra.Command) error {
 		token, err = spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
 			slog.Error(err.Error())
-			userHomeDir, _ := os.UserHomeDir()
-			clispotLogDir := filepath.Join(userHomeDir, ".clispot")
-			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotLogDir)
+			clispotConfigDir := config.GetConfigDir()
+			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotConfigDir)
 			os.Exit(1)
 		}
 	}
@@ -352,8 +351,7 @@ func doAllDepsInstalled() error {
 
 func Execute(version string) error {
 	cmd := newRootCmd(version)
-	userHomeDir, _ := os.UserHomeDir()
-	defaultDebugDir := filepath.Join(userHomeDir, ".clispot", "logs")
+	defaultDebugDir := filepath.Join(config.GetStateDir(), "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
 	cmd.Flags().Bool("headless", false, "Headless mode which provides api endpoint to build custom ui")

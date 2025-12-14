@@ -32,10 +32,7 @@ type TracksResponse struct {
 }
 
 type PlayRequestBodyType struct {
-	TrackID   string   `json:"trackID"`
-	TrackName string   `json:"name"`
-	Artists   []string `json:"artists"`
-	AlbumName string   `json:"album"`
+	TrackID string `json:"trackID"`
 	//this is a flag that whether the user skips the track or not
 	// b/c during cache mode if the skip we need to remove the track from the cache to prevent saving it b/c it may not be fully downloaded
 	IsSkip bool   `json:"isSkip"`
@@ -443,14 +440,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"error":"trackID is required"}`, http.StatusBadRequest)
 			return
 		}
-		if reqBody.TrackName == "" {
-			http.Error(w, `{"error":"trackName is required"}`, http.StatusBadRequest)
-			return
-		}
-		if len(reqBody.Artists) == 0 {
-			http.Error(w, `{"error":"artists is required"}`, http.StatusBadRequest)
-			return
-		}
 
 		userToken := m.GetUserToken()
 		if userToken == nil {
@@ -465,35 +454,44 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			musicQueue = reqBody.Queue
 		}
 
-		track, err := m.SpotifyClient.GetTrack(reqBody.TrackID, userToken.AccessToken)
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
-			return
+		var trackObject *types.PlaylistTrackObject
+
+		if reqBody.Queue != nil {
+			trackObject = reqBody.Queue.Tracks[reqBody.Queue.CurrentIndex]
 		}
 
-		if track == nil {
-			slog.Error("track is nil")
-			http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
-			return
+		if trackObject == nil {
+			track, err := m.SpotifyClient.GetTrack(reqBody.TrackID, userToken.AccessToken)
+			if err != nil {
+				slog.Error(err.Error())
+				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
+				return
+			}
+
+			if track == nil {
+				slog.Error("track is nil")
+				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
+				return
+			}
+
+			trackObject = &types.PlaylistTrackObject{
+				Track:   *track,
+				AddedAt: "",
+				AddedBy: nil,
+				IsLocal: false,
+			}
 		}
 
-		model, _ = m.PlaySelectedMusic(types.PlaylistTrackObject{
-			Track:   *track,
-			AddedAt: "",
-			AddedBy: nil,
-			IsLocal: false,
-		}, reqBody.IsSkip)
-
+		model, _ = m.PlaySelectedMusic(*trackObject, reqBody.IsSkip)
 		m.Model = &model
 		resp := map[string]any{
 			"status":  "ok",
 			"message": "track is now playing",
 			"track": map[string]any{
 				"id":      reqBody.TrackID,
-				"name":    reqBody.TrackName,
-				"album":   reqBody.AlbumName,
-				"artists": reqBody.Artists,
+				"name":    trackObject.Track.Name,
+				"album":   trackObject.Track.Album.Name,
+				"artists": trackObject.Track.Artists,
 			},
 		}
 

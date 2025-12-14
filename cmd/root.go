@@ -104,6 +104,11 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 
 func runRoot(cmd *cobra.Command) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
+	configFromFile := config.GetUserConfig()
+
+	if !cmd.Flags().Changed("debug-dir") {
+		debugDir = *configFromFile.DebugDir
+	}
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -111,6 +116,9 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	isCacheDisabled, err := cmd.Flags().GetBool("disable-cache")
+	if !cmd.Flags().Changed("disable-cache") {
+		isCacheDisabled = configFromFile.CacheDisabled
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -139,6 +147,12 @@ func runRoot(cmd *cobra.Command) error {
 
 	cookiesFromBrowser, err := cmd.Flags().GetString("cookies-from-browser")
 
+	if !cmd.Flags().Changed("cookies-from-browser") {
+		if configFromFile.YtDlpArgs != nil && configFromFile.YtDlpArgs.CookiesFromBrowser != nil {
+			cookiesFromBrowser = *configFromFile.YtDlpArgs.CookiesFromBrowser
+		}
+	}
+
 	if err != nil {
 		slog.Error(err.Error())
 	}
@@ -149,6 +163,12 @@ func runRoot(cmd *cobra.Command) error {
 
 	cookiesFile, err := cmd.Flags().GetString("cookies")
 
+	if !cmd.Flags().Changed("cookies") {
+		if configFromFile.YtDlpArgs != nil && configFromFile.YtDlpArgs.Cookies != nil {
+			cookiesFile = *configFromFile.YtDlpArgs.Cookies
+		}
+	}
+
 	if err != nil {
 		slog.Error(err.Error())
 	}
@@ -158,7 +178,7 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	config.SetConfig(&config.Config{
-		DebugDir:      debugDir,
+		DebugDir:      &debugDir,
 		CacheDisabled: isCacheDisabled,
 		YtDlpArgs:     &ytDlpArgs,
 	})

@@ -452,14 +452,17 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		if reqBody.Queue != nil {
-			musicQueue = reqBody.Queue
-		}
-
 		userToken := m.GetUserToken()
 		if userToken == nil {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
+		}
+
+		model, _ := m.HandleMusicPausePlay()
+		m.Model = &model
+
+		if reqBody.Queue != nil {
+			musicQueue = reqBody.Queue
 		}
 
 		track, err := m.SpotifyClient.GetTrack(reqBody.TrackID, userToken.AccessToken)
@@ -475,7 +478,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		model, _ := m.PlaySelectedMusic(types.PlaylistTrackObject{
+		model, _ = m.PlaySelectedMusic(types.PlaylistTrackObject{
 			Track:   *track,
 			AddedAt: "",
 			AddedBy: nil,

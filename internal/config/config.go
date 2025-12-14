@@ -59,12 +59,12 @@ func GetUserConfig() *Config {
 	if err != nil {
 		return GetDefaultConfig()
 	}
-	var config Config
-	err = json.Unmarshal(configFile, &config)
+	config := GetDefaultConfig()
+	err = json.Unmarshal(configFile, config)
 	if err != nil {
 		return GetDefaultConfig()
 	}
-	return &config
+	return config
 }
 
 var AppConfig Config

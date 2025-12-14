@@ -425,6 +425,9 @@ func (m Model) HandleMusicPausePlay() (Model, tea.Cmd) {
 	if m.PlayerProcess == nil {
 		return m, nil
 	}
+	if m.PlayerProcess.OtoPlayer == nil {
+		return m, nil
+	}
 	if m.PlayerProcess.OtoPlayer.IsPlaying() {
 		m.PlayerProcess.OtoPlayer.Pause()
 

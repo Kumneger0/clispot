@@ -93,8 +93,8 @@ func SearchAndDownloadMusic(
 
 	logPathName := appConfig.DebugDir
 
-	ytStderr, _ := os.Create(filepath.Join(logPathName, "ytstderr.log"))
-	ffStderr, _ := os.Create(filepath.Join(logPathName, "ffstderr.log"))
+	ytStderr, _ := os.Create(filepath.Join(*logPathName, "ytstderr.log"))
+	ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
 
 	if _, err := os.Stat(musicPath); err == nil {
 		return playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)

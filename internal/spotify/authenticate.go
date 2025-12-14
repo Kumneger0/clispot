@@ -12,13 +12,13 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/types"
 )
 
@@ -241,14 +241,7 @@ func RefreshToken(refreshToken string) (*types.UserTokenInfo, error) {
 }
 
 func saveUserCredentials(userCredentials types.UserTokenInfo) error {
-	currentUser, err := user.Current()
-	if err != nil {
-		slog.Error(err.Error())
-		return fmt.Errorf("error getting current user: %w", err)
-	}
-	homeDir := currentUser.HomeDir
-
-	dirPath := filepath.Join(homeDir, ".clispot")
+	dirPath := config.GetConfigDir()
 	filePath := filepath.Join(dirPath, "token.json")
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
@@ -285,12 +278,7 @@ func saveUserCredentials(userCredentials types.UserTokenInfo) error {
 }
 
 func ReadUserCredentials() (*types.UserTokenInfo, error) {
-	currentUser, err := user.Current()
-	if err != nil {
-		return &types.UserTokenInfo{}, err
-	}
-	homeDir := currentUser.HomeDir
-	dirPath := filepath.Join(homeDir, ".clispot")
+	dirPath := config.GetConfigDir()
 	clispotCredentialPath := filepath.Join(dirPath, "token.json")
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {

@@ -456,8 +456,12 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 
 		var trackObject *types.PlaylistTrackObject
 
+		var trackObject *types.PlaylistTrackObject
+
 		if reqBody.Queue != nil {
-			trackObject = reqBody.Queue.Tracks[reqBody.Queue.CurrentIndex]
+			if reqBody.Queue.CurrentIndex >= 0 && reqBody.Queue.CurrentIndex < len(reqBody.Queue.Tracks) {
+				trackObject = reqBody.Queue.Tracks[reqBody.Queue.CurrentIndex]
+			}
 		}
 
 		if trackObject == nil {

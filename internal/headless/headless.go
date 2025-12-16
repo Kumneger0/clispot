@@ -39,13 +39,22 @@ type PlayRequestBodyType struct {
 	Queue  *Queue `json:"queue"`
 }
 
+type AddTrackToQueue struct {
+	Track types.PlaylistTrackObject `json:"track"`
+	Index int                       `json:"index"`
+}
+
+type RemoveTrackFromQueue struct {
+	Track types.PlaylistTrackObject `json:"track"`
+}
+
 type Queue struct {
 	Tracks       []*types.PlaylistTrackObject `json:"tracks"`
 	CurrentIndex int                          `json:"currentIndex"`
 }
 
-func (h *Queue) AddTrack(track *types.PlaylistTrackObject) {
-	h.Tracks = append(h.Tracks, track)
+func (h *Queue) AddTrack(track *types.PlaylistTrackObject, index int) {
+	h.Tracks = append(h.Tracks[:index], append([]*types.PlaylistTrackObject{track}, h.Tracks[index:]...)...)
 }
 
 func (h *Queue) RemoveTrack(index int) {
@@ -119,7 +128,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "server is  up")
+		w.Header().Add("Content-Type", "Application/json")
+		fmt.Fprintln(w, `{"message":"server is up"}`)
 	})
 
 	mux.HandleFunc("/library", func(w http.ResponseWriter, r *http.Request) {
@@ -456,8 +466,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 
 		var trackObject *types.PlaylistTrackObject
 
-		var trackObject *types.PlaylistTrackObject
-
 		if reqBody.Queue != nil {
 			if reqBody.Queue.CurrentIndex >= 0 && reqBody.Queue.CurrentIndex < len(reqBody.Queue.Tracks) {
 				trackObject = reqBody.Queue.Tracks[reqBody.Queue.CurrentIndex]
@@ -507,6 +515,92 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(data)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+	})
+
+	mux.HandleFunc("GET /player/queue", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		data, err := json.Marshal(musicQueue)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
+			return
+		}
+		_, err = w.Write(data)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+	})
+
+	mux.HandleFunc("POST /player/queue/add", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var reqBody AddTrackToQueue
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		if err != nil {
+			slog.Error("failed to decode request body: " + err.Error())
+			fmt.Println("failed to add to queue", reqBody)
+			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
+			return
+		}
+
+		musicQueue.AddTrack(&reqBody.Track, reqBody.Index)
+
+		w.WriteHeader(http.StatusOK)
+		data, err := json.Marshal(map[string]any{
+			"status":  "success",
+			"message": "track added to queue",
+		})
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
+			return
+		}
+
+		fmt.Println("added to queue", reqBody.Track)
+
+		_, err = w.Write(data)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+	})
+
+	mux.HandleFunc("DELETE /player/queue/remove", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var reqBody RemoveTrackFromQueue
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		if err != nil {
+			slog.Error("failed to decode request body: " + err.Error())
+			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
+			return
+		}
+		var index int = -1
+		for i, track := range musicQueue.Tracks {
+			if track.Track.ID == reqBody.Track.Track.ID {
+				index = i
+				break
+			}
+		}
+		if index == -1 {
+			http.Error(w, `{"message":"track not found", status:"error"}`, http.StatusNotFound)
+			return
+		}
+
+		musicQueue.RemoveTrack(index)
+
+		w.WriteHeader(http.StatusOK)
+		data, err := json.Marshal(map[string]any{
+			"status":  "success",
+			"message": "track removed from queue",
+		})
+		if err != nil {
+			slog.Error(err.Error())
+			return
+		}
+
 		_, err = w.Write(data)
 		if err != nil {
 			slog.Error(err.Error())

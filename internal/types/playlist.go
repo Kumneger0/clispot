@@ -57,10 +57,11 @@ type PlaylistItemsResponse struct {
 }
 
 type PlaylistTrackObject struct {
-	AddedAt string       `json:"added_at"`
-	AddedBy *SpotifyUser `json:"added_by"`
-	IsLocal bool         `json:"is_local"`
-	Track   Track        `json:"track"`
+	AddedAt       string       `json:"added_at"`
+	AddedBy       *SpotifyUser `json:"added_by"`
+	IsLocal       bool         `json:"is_local"`
+	Track         Track        `json:"track"`
+	IsItFromQueue bool         `json:"isItFromQueue"`
 }
 
 func (playlist PlaylistTrackObject) FilterValue() string {

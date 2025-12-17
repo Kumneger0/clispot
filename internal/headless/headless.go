@@ -54,6 +54,9 @@ type Queue struct {
 }
 
 func (h *Queue) AddTrack(track *types.PlaylistTrackObject, index int) {
+	if index < 0 || index > len(h.Tracks) {
+		index = len(h.Tracks)
+	}
 	h.Tracks = append(h.Tracks[:index], append([]*types.PlaylistTrackObject{track}, h.Tracks[index:]...)...)
 }
 

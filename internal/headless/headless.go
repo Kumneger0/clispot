@@ -542,6 +542,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 	})
 
 	mux.HandleFunc("POST /player/queue/add", func(w http.ResponseWriter, r *http.Request) {
+		mqMu.Lock()
+		defer mqMu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		var reqBody AddTrackToQueue
 		err := json.NewDecoder(r.Body).Decode(&reqBody)

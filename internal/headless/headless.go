@@ -576,6 +576,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 	})
 
 	mux.HandleFunc("DELETE /player/queue/remove", func(w http.ResponseWriter, r *http.Request) {
+		mqMu.Lock()
+		defer mqMu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		var reqBody RemoveTrackFromQueue
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -597,6 +599,17 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		musicQueue.RemoveTrack(index)
+		// Adjust CurrentIndex if necessary
+		if index < musicQueue.CurrentIndex {
+			musicQueue.CurrentIndex--
+		} else if index == musicQueue.CurrentIndex && musicQueue.CurrentIndex >= len(musicQueue.Tracks) {
+			// If we removed the current track and it was the last one, adjust to the new last track
+			if len(musicQueue.Tracks) > 0 {
+				musicQueue.CurrentIndex = len(musicQueue.Tracks) - 1
+			} else {
+				musicQueue.CurrentIndex = 0
+			}
+		}
 
 		w.WriteHeader(http.StatusOK)
 		data, err := json.Marshal(map[string]any{

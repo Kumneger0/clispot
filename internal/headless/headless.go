@@ -525,14 +525,16 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 	})
 
 	mux.HandleFunc("GET /player/queue", func(w http.ResponseWriter, r *http.Request) {
+		mqMu.Lock()
+		defer mqMu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		data, err := json.Marshal(musicQueue)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(data)
 		if err != nil {
 			slog.Error(err.Error())

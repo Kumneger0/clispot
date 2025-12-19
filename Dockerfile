@@ -14,6 +14,10 @@ FROM debian:stable-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    ffmpeg \
+    python3 \
+    python3-pip \
+ && pip3 install --break-system-packages yt-dlp \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/clispot /usr/bin/clispot

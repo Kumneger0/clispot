@@ -761,9 +761,13 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 		next, prev = SideView, QueueList
 	default:
 		if shift {
-			m.FocusedOn = MainView
-			chatListLastIndex := len(m.SelectedPlayListItems.Items()) - 1
-			m.SelectedPlayListItems.Select(chatListLastIndex)
+			items := m.SelectedPlayListItems.Items()
+			if len(items) > 0 {
+				m.FocusedOn = MainView
+				m.SelectedPlayListItems.Select(len(items) - 1)
+			} else {
+				m.FocusedOn = SideView
+			}
 			return *m, nil
 		}
 		m.FocusedOn = SideView

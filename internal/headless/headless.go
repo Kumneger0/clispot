@@ -566,9 +566,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
 			return
 		}
-
-		fmt.Println("added to queue", reqBody.Track)
-
 		_, err = w.Write(data)
 		if err != nil {
 			slog.Error(err.Error())

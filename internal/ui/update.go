@@ -733,58 +733,50 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 }
 
 func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
-	var cmds []tea.Cmd
-	currentlyFocusedOn := m.FocusedOn
-	switch currentlyFocusedOn {
+	var next, prev FocusedOn
+	switch m.FocusedOn {
 	case SideView:
-		if shift {
-			m.FocusedOn = Player
-		} else {
-			m.FocusedOn = MainView
-		}
+		next, prev = MainView, Player
 	case MainView:
-		if shift {
-			m.FocusedOn = SideView
-		} else if m.MainViewMode == SearchResultMode {
-			m.FocusedOn = SearchResultTrack
+		if m.MainViewMode == SearchResultMode {
+			next = SearchResultTrack
 		} else {
-			m.FocusedOn = QueueList
+			next = QueueList
 		}
-	case QueueList:
-		if shift {
-			m.FocusedOn = MainView
-		} else {
-			m.FocusedOn = Player
-		}
-	case SearchResultPlaylist:
-		//do something here
-		if shift {
-			m.FocusedOn = SearchResultArtist
-		} else {
-			m.FocusedOn = QueueList
-		}
+		prev = SideView
 	case SearchResultTrack:
-		if shift {
-			m.FocusedOn = SideView
-		} else {
-			m.FocusedOn = SearchResultArtist
-		}
+		next, prev = SearchResultArtist, SideView
 	case SearchResultArtist:
-		if shift {
-			m.FocusedOn = SearchResultTrack
+		next, prev = SearchResultPlaylist, SearchResultTrack
+	case SearchResultPlaylist:
+		next, prev = QueueList, SearchResultArtist
+	case QueueList:
+		if m.MainViewMode == SearchResultMode {
+			prev = SearchResultPlaylist
 		} else {
-			m.FocusedOn = SearchResultPlaylist
+			prev = MainView
 		}
+		next = Player
+	case Player:
+		next, prev = SideView, QueueList
 	default:
 		if shift {
 			m.FocusedOn = MainView
 			chatListLastIndex := len(m.SelectedPlayListItems.Items()) - 1
 			m.SelectedPlayListItems.Select(chatListLastIndex)
-		} else {
-			m.FocusedOn = SideView
+			return *m, nil
 		}
+		m.FocusedOn = SideView
+		return *m, nil
 	}
-	return *m, tea.Batch(cmds...)
+
+	if shift {
+		m.FocusedOn = prev
+	} else {
+		m.FocusedOn = next
+	}
+
+	return *m, nil
 }
 
 func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (Model, tea.Cmd) {

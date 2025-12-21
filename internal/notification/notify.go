@@ -26,11 +26,9 @@ func getAppLogo() *[]byte {
 }
 
 func getAppIconPath() string {
-	var iconPath string
+	path := filepath.Join(os.TempDir(), "clispot-icon.png")
 	once.Do(func() {
-		path := filepath.Join(os.TempDir(), "clispot-icon.png")
 		logoPNG := getAppLogo()
-
 		if logoPNG == nil {
 			slog.Error("logo.png not found")
 			return
@@ -40,9 +38,8 @@ func getAppIconPath() string {
 			slog.Error(err.Error())
 			return
 		}
-		iconPath = path
 	})
-	return iconPath
+	return path
 }
 
 func Notify(title string, message string) {

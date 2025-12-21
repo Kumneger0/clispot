@@ -137,7 +137,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.LogType == youtube.ERROR {
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Line)
-			// show system notification
 			notificationTitle := "YtDlp Error"
 			notificationMessage := msg.Line
 			notification.Notify(notificationTitle, notificationMessage)

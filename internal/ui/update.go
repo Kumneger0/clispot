@@ -15,6 +15,7 @@ import (
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
+	"go.dalton.dog/bubbleup"
 )
 
 var testLyrics = `working hard to get the lyrics for you`
@@ -71,6 +72,9 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 	return m, nil
 }
 
+type CloseAlertMsg struct {
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
@@ -92,10 +96,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.IsSearchLoading = false
 		m.MainViewMode = LyricsMode
 	case types.SpotifySearchResultMsg:
+		var alertCmd tea.Cmd
 		if msg.Err != nil {
-			//hmm not again
-			//reminder
-			//TODO: don't forgot to show the error for the user
+			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
 		}
 		if msg.Result != nil {
 			m.FocusedOn = SearchResult
@@ -111,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.SearchResult.Artists.Title = "artist"
 				m.SearchResult.Playlists.Title = "playlist"
 			}
-			cmds = append(cmds, cmd)
+			cmds = append(cmds, cmd, alertCmd)
 			m.IsSearchLoading = false
 		}
 	case *types.UserFollowedArtistResponse:
@@ -190,7 +193,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 		if msg.Err != nil {
-			//TODO: find nice way to show error messages
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			cmds = append(cmds, alertCmd)
 		}
 	case tea.KeyMsg:
 		model, cmd := m.handleKeyPress(msg)
@@ -210,7 +214,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		//TODO: do something here if no key matched
 	}
-	return updateFocusedComponent(&m, msg, &cmds)
+	model, cmd := updateFocusedComponent(&m, msg, &cmds)
+	m = model
+	outAlert, outCmd := m.Alert.Update(msg)
+	cmds = append(cmds, outCmd, cmd)
+	m.Alert = outAlert.(bubbleup.AlertModel)
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) handleDbusMessage(msg types.MessageType, cmds []tea.Cmd) (Model, tea.Cmd) {
@@ -480,9 +489,8 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)
 		selectedMusic, ok := listItemToChooseMusicFrom.SelectedItem().(types.PlaylistTrackObject)
 		if !ok {
-			//TODO: find a way to show error message for the user
-			slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
-			return m, nil
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, "failed to cast SelectedPlayListItems to PlaylistTrackObject")
+			return m, alertCmd
 		}
 
 		var items []list.Item
@@ -651,13 +659,14 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		if err != nil {
 			slog.Error(err.Error())
 		}
-		//TODO:Show error message
+		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
+		return m, alertCmd
 	}
 	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter)
 	if err != nil {
 		slog.Error(err.Error())
-		//TODO: implement some kind of way to show the error message
-		return m, nil
+		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
+		return m, alertCmd
 	}
 	cmd := tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
 		if process != nil {

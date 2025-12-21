@@ -18,6 +18,7 @@ import (
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
+	"go.dalton.dog/bubbleup"
 )
 
 type FocusedOn string
@@ -58,6 +59,7 @@ type SelectedTrack struct {
 
 type Model struct {
 	Playlist              list.Model
+	Alert                 bubbleup.AlertModel
 	SelectedPlayListItems list.Model
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
@@ -109,7 +111,7 @@ func (m Model) Init() tea.Cmd {
 			return followedArtist
 		}
 	}
-	return cmd
+	return tea.Batch(cmd, m.Alert.Init())
 }
 
 func (m Model) View() string {
@@ -170,7 +172,7 @@ func (m Model) View() string {
 		lipgloss.JoinHorizontal(lipgloss.Top, playlistView, mainView, queueList),
 		playing,
 	)
-	return combinedView
+	return m.Alert.Render(combinedView)
 }
 
 func formatTime(d time.Duration) string {

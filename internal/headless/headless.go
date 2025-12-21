@@ -10,6 +10,7 @@ import (
 
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
+	"github.com/kumneger0/clispot/internal/youtube"
 )
 
 type UserLibrary struct {
@@ -29,6 +30,18 @@ const (
 
 type TracksResponse struct {
 	Tracks []*types.PlaylistTrackObject `json:"tracks"`
+}
+
+type SSEMessage struct {
+	Player *struct {
+		IsPlaying     bool    `json:"isPlaying"`
+		CurrentIndex  int     `json:"currentIndex"`
+		SecondsPlayed float64 `json:"secondsPlayed"`
+	} `json:"player,omitempty"`
+	YtDlp *struct {
+		Message string            `json:"message"`
+		LogType youtube.YtDlpLogs `json:"logType"`
+	} `json:"ytDlp,omitempty"`
 }
 
 type PlayRequestBodyType struct {
@@ -643,20 +656,55 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
+		msgCh := make(chan youtube.ScanFuncArgs, 10)
+
+		go func() {
+			youtube.ReadYtDlpErrReader(m.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
+				msgCh <- args
+			})
+		}()
+
 		for {
 			select {
+			case msg := <-msgCh:
+				m.Mu.Lock()
+				message := SSEMessage{
+					Player: nil,
+					YtDlp: &struct {
+						Message string            "json:\"message\""
+						LogType youtube.YtDlpLogs "json:\"logType\""
+					}{
+						Message: msg.Line,
+						LogType: msg.LogType,
+					},
+				}
+				response, _ := json.Marshal(message)
+				fmt.Fprintf(w, "data: %s\n\n", response)
+				flusher.Flush()
+				m.Mu.Unlock()
 			case <-ctx.Done():
 				return
-
 			case <-ticker.C:
 				m.Mu.RLock()
-				if m.PlayerProcess == nil || m.PlayerProcess.ByteCounterReader == nil {
-					fmt.Fprintf(w, "data: 0\n\n")
-				} else {
+				if m.PlayerProcess != nil && m.PlayerProcess.ByteCounterReader != nil {
 					currentIndex := musicQueue.CurrentIndex
 					isPlaying := m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying()
 					seconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
-					msg, _ := json.Marshal(map[string]any{"seconds": seconds, "currentIndex": currentIndex, "isPlaying": isPlaying})
+
+					message := SSEMessage{
+						Player: &struct {
+							IsPlaying     bool    "json:\"isPlaying\""
+							CurrentIndex  int     "json:\"currentIndex\""
+							SecondsPlayed float64 "json:\"secondsPlayed\""
+						}{
+							IsPlaying:     isPlaying,
+							CurrentIndex:  currentIndex,
+							SecondsPlayed: seconds,
+						},
+						YtDlp: nil,
+					}
+
+					msg, _ := json.Marshal(message)
 					fmt.Fprintf(w, "data: %s\n\n", msg)
 				}
 				m.Mu.RUnlock()

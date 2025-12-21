@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
+	"github.com/kumneger0/clispot/internal/youtube"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -243,6 +245,10 @@ func runRoot(cmd *cobra.Command) error {
 		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL()),
 	}
 
+	reader, writer := io.Pipe()
+	model.YtDlpErrWriter = writer
+	model.YtDlpErrReader = reader
+
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -292,8 +298,13 @@ func runRoot(cmd *cobra.Command) error {
 	} else {
 		model.IsLyricsServerInstalled = true
 	}
-
 	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	go func() {
+		youtube.ReadYtDlpErrReader(model.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
+			Program.Send(args)
+		})
+	}()
 
 	go func() {
 		if messageChan == nil {

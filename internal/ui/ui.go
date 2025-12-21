@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -64,6 +65,8 @@ type Model struct {
 	PlayerProcess       *youtube.Player
 	LyricsServerProcess *os.Process
 	SelectedTrack       *SelectedTrack
+	YtDlpErrWriter      *io.PipeWriter
+	YtDlpErrReader      *io.PipeReader
 	PlayedSeconds       float64
 	Height              int
 	Width               int
@@ -93,8 +96,6 @@ type SafeModel struct {
 	Mu sync.RWMutex
 	*Model
 }
-
-// Use m.mu.Lock()/Unlock() when writing, m.mu.RLock()/RUnlock() when reading
 
 func (m Model) Init() tea.Cmd {
 	var cmd tea.Cmd

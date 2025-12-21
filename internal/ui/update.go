@@ -125,6 +125,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
 		m = model
 		cmds = append(cmds, cmd)
+	case youtube.ScanFuncArgs:
+		//TODO: show some kind of toast message in the terminal
+		if msg.LogType == youtube.WARNING {
+		}
+		if msg.LogType == youtube.ERROR {
+		}
 	case types.UpdatePlayedSeconds:
 		m.PlayedSeconds = msg.CurrentSeconds
 		cmd := func() tea.Cmd {
@@ -647,7 +653,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		}
 		//TODO:Show error message
 	}
-	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil)
+	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter)
 	if err != nil {
 		slog.Error(err.Error())
 		//TODO: implement some kind of way to show the error message

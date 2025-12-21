@@ -1,11 +1,13 @@
 package youtube
 
 import (
+	"bufio"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ebitengine/oto/v3"
@@ -60,6 +62,7 @@ func SearchAndDownloadMusic(
 	artistNames []string,
 	spotifyID string,
 	shouldWait bool,
+	ytDlpErrWriter *io.PipeWriter,
 ) (*Player, error) {
 	searchQuery := "ytsearch:" + trackName
 	if len(artistNames) > 0 {
@@ -96,12 +99,20 @@ func SearchAndDownloadMusic(
 	ytStderr, _ := os.Create(filepath.Join(*logPathName, "ytstderr.log"))
 	ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
 
+	var ytdlpWriter io.Writer
+
+	if ytDlpErrWriter != nil {
+		ytdlpWriter = io.MultiWriter(ytStderr, ytDlpErrWriter)
+	} else {
+		ytdlpWriter = ytStderr
+	}
+
 	if _, err := os.Stat(musicPath); err == nil {
 		return playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)
 	}
 
 	yt := exec.Command("yt-dlp", args...)
-	yt.Stderr = ytStderr
+	yt.Stderr = ytdlpWriter
 
 	ytOut, err := yt.StdoutPipe()
 	if err != nil {
@@ -279,4 +290,55 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			return firstErr
 		},
 	}, nil
+}
+
+type YtDlpLogs string
+
+const (
+	WARNING  YtDlpLogs = "warning"
+	INFO     YtDlpLogs = "info"
+	ERROR    YtDlpLogs = "error"
+	DOWNLOAD YtDlpLogs = "download"
+	YOUTUBE  YtDlpLogs = "youtube"
+)
+
+type ScanFuncArgs struct {
+	Line    string
+	LogType YtDlpLogs
+}
+
+func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs)) {
+	if reader == nil {
+		return
+	}
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(strings.ToLower(line), "error") {
+			scanFunc(ScanFuncArgs{
+				Line:    line,
+				LogType: ERROR,
+			})
+		} else if strings.Contains(strings.ToLower(line), "warning") {
+			scanFunc(ScanFuncArgs{
+				Line:    line,
+				LogType: WARNING,
+			})
+		} else if strings.Contains(strings.ToLower(line), "download") {
+			scanFunc(ScanFuncArgs{
+				Line:    line,
+				LogType: DOWNLOAD,
+			})
+		} else if strings.Contains(strings.ToLower(line), "youtube") {
+			scanFunc(ScanFuncArgs{
+				Line:    line,
+				LogType: YOUTUBE,
+			})
+		} else {
+			scanFunc(ScanFuncArgs{
+				Line:    line,
+				LogType: INFO,
+			})
+		}
+	}
 }

@@ -72,9 +72,6 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 	return m, nil
 }
 
-type CloseAlertMsg struct {
-}
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
@@ -658,9 +655,9 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		err := playerProcess.Close(isSkip)
 		if err != nil {
 			slog.Error(err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
+			return m, alertCmd
 		}
-		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
-		return m, alertCmd
 	}
 	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter)
 	if err != nil {

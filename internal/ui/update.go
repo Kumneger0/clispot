@@ -99,6 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var alertCmd tea.Cmd
 		if msg.Err != nil {
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			cmds = append(cmds, alertCmd)
 		}
 		if msg.Result != nil {
 			m.FocusedOn = SearchResult
@@ -114,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.SearchResult.Artists.Title = "artist"
 				m.SearchResult.Playlists.Title = "playlist"
 			}
-			cmds = append(cmds, cmd, alertCmd)
+			cmds = append(cmds, cmd)
 			m.IsSearchLoading = false
 		}
 	case *types.UserFollowedArtistResponse:
@@ -658,9 +659,9 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		err := playerProcess.Close(isSkip)
 		if err != nil {
 			slog.Error(err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
+			return m, alertCmd
 		}
-		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
-		return m, alertCmd
 	}
 	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter)
 	if err != nil {

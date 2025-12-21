@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/godbus/dbus/v5"
 	"github.com/kumneger0/clispot/internal/lyrics"
+	"github.com/kumneger0/clispot/internal/notification"
 	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
@@ -130,11 +131,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = model
 		cmds = append(cmds, cmd)
 	case youtube.ScanFuncArgs:
-		//TODO: show some kind of toast message in the terminal
+		var alertCmd tea.Cmd
 		if msg.LogType == youtube.WARNING {
+			alertCmd = m.Alert.NewAlertCmd(bubbleup.WarnKey, msg.Line)
 		}
 		if msg.LogType == youtube.ERROR {
+			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Line)
+			// show system notification
+			notificationTitle := "YtDlp Error"
+			notificationMessage := msg.Line
+			notification.Notify(notificationTitle, notificationMessage)
 		}
+		cmds = append(cmds, alertCmd)
 	case types.UpdatePlayedSeconds:
 		m.PlayedSeconds = msg.CurrentSeconds
 		cmd := func() tea.Cmd {
@@ -326,14 +334,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
+	var alertCmd tea.Cmd
 	if !m.IsLyricsServerInstalled {
-		return m, nil
+		alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "Lyrics server is not installed")
+		return m, alertCmd
 	}
 	if m.FocusedOn != Player {
 		return m, nil
 	}
 	if track == nil || track.Track == nil {
-		return m, nil
+		alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "Failed to get lyrics for this track")
+		return m, alertCmd
 	}
 	trackName := track.Track.Track.Name
 	var artistNames []string
@@ -369,7 +380,7 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 		return lyricsResponse
 	}
 	loadingCmd := SendLoadingCmd()
-	return m, tea.Batch(loadingCmd, lyricsCmd)
+	return m, tea.Batch(loadingCmd, lyricsCmd, alertCmd)
 }
 
 func (m Model) handleMusicChange(isForward, isSkip bool) (Model, tea.Cmd) {

@@ -96,6 +96,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var alertCmd tea.Cmd
 		if msg.Err != nil {
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			cmds = append(cmds, alertCmd)
 		}
 		if msg.Result != nil {
 			m.FocusedOn = SearchResult
@@ -111,7 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.SearchResult.Artists.Title = "artist"
 				m.SearchResult.Playlists.Title = "playlist"
 			}
-			cmds = append(cmds, cmd, alertCmd)
+			cmds = append(cmds, cmd)
 			m.IsSearchLoading = false
 		}
 	case *types.UserFollowedArtistResponse:

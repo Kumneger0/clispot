@@ -175,6 +175,8 @@ func (m Model) View() string {
 	return m.Alert.Render(combinedView)
 }
 
+// formatTime formats a duration as "MM:SS" with minutes and seconds zero-padded to two digits.
+// Negative durations are treated as zero.
 func formatTime(d time.Duration) string {
 	if d < 0 {
 		d = 0

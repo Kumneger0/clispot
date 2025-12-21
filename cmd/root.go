@@ -105,6 +105,11 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 	fmt.Fprintf(os.Stderr, "Another instance of clispot is already running (PID: %d).\n", pid)
 }
 
+// runRoot executes the application's startup sequence: it loads configuration, prepares the debug/log directory,
+// validates external dependencies, initializes logging, authenticates or refreshes the Spotify token, constructs the
+// UI model (or a headless server), and then starts either the headless server or the interactive Bubble Tea program.
+// The function returns an error only for non-fatal failures; on several unrecoverable startup errors it logs messages
+// and terminates the process via os.Exit.
 func runRoot(cmd *cobra.Command) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 	configFromFile := config.GetUserConfig()

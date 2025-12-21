@@ -72,6 +72,9 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 	return m, nil
 }
 
+type CloseAlertMsg struct {
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {

@@ -18,6 +18,7 @@ import (
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
 	"github.com/kumneger0/clispot/internal/youtube"
+	"go.dalton.dog/bubbleup"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -285,6 +286,8 @@ func runRoot(cmd *cobra.Command) error {
 	input.Placeholder = "Search tracks, artists, albums..."
 	input.Prompt = "> "
 	input.CharLimit = 256
+
+	model.Alert = *bubbleup.NewAlertModel(80, true, 5)
 
 	model.Search = input
 	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)

@@ -292,7 +292,7 @@ func runRoot(cmd *cobra.Command) error {
 	input.Prompt = "> "
 	input.CharLimit = 256
 
-	model.Alert = *bubbleup.NewAlertModel(80, true, 5)
+	model.Alert = *bubbleup.NewAlertModel(80, true, 10)
 
 	model.Search = input
 	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)

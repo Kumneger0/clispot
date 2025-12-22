@@ -282,8 +282,8 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		notificationTitle := "Audio Processing Failed"
 		notificationMessage := err.Error()
 		err = f.Close()
-		if err != nil {
-			slog.Error(err.Error())
+		if closeErr := f.Close(); closeErr != nil {
+			slog.Error(closeErr.Error())
 		}
 		notification.Notify(notificationTitle, notificationMessage)
 		return nil, false, err

@@ -45,9 +45,17 @@ func getAppIconPath() string {
 func Notify(title string, message string) {
 	beeep.AppName = "Clispot"
 	logo := getAppIconPath()
-
-	err := beeep.Notify(title, message, logo)
+	shortenMessage := trimWithEllipsis(message, 300)
+	err := beeep.Notify(title, shortenMessage, logo)
 	if err != nil {
 		slog.Error(err.Error())
 	}
+}
+
+func trimWithEllipsis(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-1]) + "…"
 }

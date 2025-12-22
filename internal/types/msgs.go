@@ -37,3 +37,9 @@ type CheckUserSavedTrackResponseMsg struct {
 	Saved bool
 	Err   error
 }
+
+type LikeUnlikeTrackMsg struct {
+	TrackID string
+	Like    bool
+	Err     error
+}

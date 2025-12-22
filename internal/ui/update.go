@@ -130,6 +130,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd := m.handleDbusMessage(msg.MessageType, cmds)
 		m = model
 		cmds = append(cmds, cmd)
+	case types.LikeUnlikeTrackMsg:
+		if msg.TrackID == m.SelectedTrack.Track.Track.ID {
+			m.SelectedTrack.isLiked = msg.Like
+		}
 	case youtube.ScanFuncArgs:
 		var alertCmd tea.Cmd
 		if msg.LogType == youtube.WARNING {
@@ -288,8 +292,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				if err != nil {
 					slog.Error(err.Error())
 				}
-				m.SelectedTrack.isLiked = !m.SelectedTrack.isLiked
-				return nil
+				likeUnlikeTrackMsg := types.LikeUnlikeTrackMsg{
+					TrackID: m.SelectedTrack.Track.Track.ID,
+					Like:    !shouldRemove,
+					Err:     err,
+				}
+				return likeUnlikeTrackMsg
 			}
 			return m, cmd
 		}

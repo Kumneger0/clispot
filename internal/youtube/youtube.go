@@ -2,6 +2,7 @@ package youtube
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ebitengine/oto/v3"
 	"github.com/kumneger0/clispot/internal/config"
+	"github.com/kumneger0/clispot/internal/notification"
 )
 
 type Player struct {
@@ -108,7 +110,14 @@ func SearchAndDownloadMusic(
 	}
 
 	if _, err := os.Stat(musicPath); err == nil {
-		return playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)
+		player, isPlayable, err := playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)
+		if err != nil {
+			slog.Error(err.Error())
+		}
+		if isPlayable {
+			return player, nil
+		}
+		slog.Error("cached audio is not playable trying to play from youtube")
 	}
 
 	yt := exec.Command("yt-dlp", args...)
@@ -126,7 +135,6 @@ func SearchAndDownloadMusic(
 	isCacheDisabled := appConfig.CacheDisabled
 
 	var cacheFile *os.File
-
 	var reader io.Reader
 	if !isCacheDisabled {
 		cacheFile, err = os.Create(musicPath)
@@ -220,10 +228,38 @@ func SearchAndDownloadMusic(
 	}, nil
 }
 
-func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os.File) (*Player, error) {
+func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os.File) (*Player, bool, error) {
+	_, err := exec.LookPath("ffprobe")
+	if err != nil {
+		notificationTitle := "ffprobe is missing"
+		notificationMessage := "ffprobe is missing, please install it helps us to check the status of cached audio"
+		notification.Notify(notificationTitle, notificationMessage)
+		return nil, false, err
+	}
+
+	cmd := exec.Command(
+		"ffprobe",
+		"-v", "error",
+		"-select_streams", "a:0",
+		"-show_entries", "stream=codec_name",
+		"-of", "json",
+		musicPath,
+	)
+
+	err = cmd.Run()
+	playable := err == nil
+
+	if !playable {
+		return nil, false, errors.New("audio is not playable")
+	}
+
 	f, err := os.Open(musicPath)
 	if err != nil {
-		return nil, err
+		slog.Error(err.Error())
+		notificationTitle := "Error opening music file"
+		notificationMessage := err.Error()
+		notification.Notify(notificationTitle, notificationMessage)
+		return nil, false, err
 	}
 
 	ff := exec.Command("ffmpeg",
@@ -242,12 +278,17 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 	ff.Stdout = pw
 
 	if err := ff.Start(); err != nil {
-		return nil, err
+		slog.Error(err.Error())
+		notificationTitle := "Audio Processing Failed"
+		notificationMessage := err.Error()
+		notification.Notify(notificationTitle, notificationMessage)
+		return nil, false, err
 	}
 
 	ctx, ready, err := getOtoContext()
 	if err != nil {
-		return nil, err
+		slog.Error(err.Error())
+		return nil, false, err
 	}
 	if shouldWait {
 		<-ready
@@ -289,7 +330,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 
 			return firstErr
 		},
-	}, nil
+	}, true, nil
 }
 
 type YtDlpLogs string

@@ -232,7 +232,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 	_, err := exec.LookPath("ffprobe")
 	if err != nil {
 		notificationTitle := "ffprobe is missing"
-		notificationMessage := "ffprobe is missing, please install it helps us to check the status of cached audio"
+		notificationMessage := "ffprobe is missing, please install it to enable cached audio validation"
 		notification.Notify(notificationTitle, notificationMessage)
 		return nil, false, err
 	}

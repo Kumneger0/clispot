@@ -40,5 +40,11 @@ Before building clispot from source, ensure you have the following prerequisites
    make build
    ```
 
+   > **Note for Linux Users:**
+   > You must enable CGO to build the project successfully on Linux, as the audio library depends on C libraries. This is not required for Windows or macOS.
+   > ```bash
+   > CGO_ENABLED=1 make build
+   > ```
+
 If you encounter any issues during installation:  
 For additional help, please [open an issue](https://github.com/kumneger0/clispot/issues/new) on GitHub.

@@ -8,14 +8,16 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/daixiang0/gci v0.13.7
 	github.com/ebitengine/oto/v3 v3.4.0
+	github.com/gen2brain/beeep v0.11.2
 	github.com/go-critic/go-critic v0.14.2
-	github.com/godbus/dbus/v5 v5.2.1
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gofrs/flock v0.13.0
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/gotesttools/gotestfmt/v2 v2.5.0
 	github.com/muesli/mango-cobra v1.3.0
 	github.com/muesli/roff v0.1.0
 	github.com/spf13/cobra v1.10.2
+	go.dalton.dog/bubbleup v1.1.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
 	golang.org/x/tools v0.40.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -78,7 +80,6 @@ require (
 	github.com/firefart/nonamedreturns v1.0.5 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
-	github.com/gen2brain/beeep v0.11.2 // indirect
 	github.com/ghostiam/protogetter v0.3.9 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -219,7 +220,6 @@ require (
 	gitlab.com/bosi/decorder v0.4.2 // indirect
 	go-simpler.org/musttag v0.13.0 // indirect
 	go-simpler.org/sloglint v0.9.0 // indirect
-	go.dalton.dog/bubbleup v1.1.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

@@ -1,41 +1,63 @@
 version: 2
 project_name: clispot
+
 env:
   - GO111MODULE=on
-  - CGO_ENABLED=1
+
 before:
   hooks:
     - ./scripts/manpages.sh
-    # - ./scripts/completions.sh
+    - ./scripts/completions.sh
+
 builds:
   - id: clispot
-    binary: clispot
     main: .
     ldflags:
       - -s -w -X main.version={{ .Version }}
+    binary: clispot
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      - darwin
     goarch:
       - amd64
+      - arm64
+      - 386
+
+    ignore:
+      - goos: linux
+        goarch: arm64
+      - goos: linux
+        goarch: "386"
+      - goos: darwin
+        goarch: "386"
+
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1 
+          - CC=gcc
+
 archives:
-  -
-    ids:
+  - ids:
       - clispot
-    format_overrides:
+    format_overrides: []
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
+
 nfpms:
   - ids:
       - clispot
     vendor: kumneger0
-    homepage:  https://github.com/kumneger0/clispot
+    homepage: https://github.com/kumneger0/clispot
     maintainer: "Kumneger wondimu <Kumnegerwondimu@gmail.com>"
-    description: "CLI-based Telegram client"
+    description: "CLI-based Spotify client"
     license: GPL-3.0
     formats:
       - apk
@@ -56,23 +78,25 @@ nfpms:
         file_info:
           mode: 0644
       - src: ./completions/clispot.zsh
-        dst:  /usr/share/zsh/vendor-completions/_clispot
+        dst: /usr/share/zsh/vendor-completions/_clispot
         file_info:
           mode: 0644
+
 checksum:
   name_template: "checksums.txt"
+
 changelog:
   sort: asc
   use: github
   filters:
     exclude:
-    - '^test:'
-    - '^chore'
-    - 'merge conflict'
-    - Merge pull request
-    - Merge remote-tracking branch
-    - Merge branch
-    - go mod tidy
+      - '^test:'
+      - '^chore'
+      - 'merge conflict'
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+      - go mod tidy
   groups:
     - title: Dependency updates
       regexp: '^.*?(feat|fix)\(deps\)!?:.+$'
@@ -84,7 +108,7 @@ changelog:
       regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
       order: 200
     - title: 'Documentation updates'
-      regexp: ^.*?doc(\([[:word:]]+\))??!?:.+$
+      regexp: '^.*?doc(\([[:word:]]+\))??!?:.+$'
       order: 400
     - title: Other work
       order: 9999

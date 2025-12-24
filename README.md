@@ -4,7 +4,7 @@ listen to your favorite spotify songs right from your terminal
 
 ## 📖 Documentation
 
-For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [User Guide](docs/guide.md).
+For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [Documentation](https://clispot.kumneger.dev).
 
 ## TODO
 

@@ -105,11 +105,6 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 	fmt.Fprintf(os.Stderr, "Another instance of clispot is already running (PID: %d).\n", pid)
 }
 
-// runRoot executes the application's startup sequence: it loads configuration, prepares the debug/log directory,
-// validates external dependencies, initializes logging, authenticates or refreshes the Spotify token, constructs the
-// UI model (or a headless server), and then starts either the headless server or the interactive Bubble Tea program.
-// The function returns an error only for non-fatal failures; on several unrecoverable startup errors it logs messages
-// and terminates the process via os.Exit.
 func runRoot(cmd *cobra.Command) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
 	configFromFile := config.GetUserConfig()
@@ -118,6 +113,15 @@ func runRoot(cmd *cobra.Command) error {
 		debugDir = *configFromFile.DebugDir
 	}
 
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	cacheDir, err := cmd.Flags().GetString("cache-dir")
+	if !cmd.Flags().Changed("cache-dir") && configFromFile.CacheDir != nil {
+		cacheDir = *configFromFile.CacheDir
+	}
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -188,6 +192,7 @@ func runRoot(cmd *cobra.Command) error {
 	config.SetConfig(&config.Config{
 		DebugDir:      &debugDir,
 		CacheDisabled: isCacheDisabled,
+		CacheDir:      &cacheDir,
 		YtDlpArgs:     &ytDlpArgs,
 	})
 
@@ -372,6 +377,7 @@ func Execute(version string) error {
 	cmd := newRootCmd(version)
 	defaultDebugDir := filepath.Join(config.GetStateDir(), "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
+	cmd.Flags().StringP("cache-dir", "c", config.GetCacheDir(), "a path to store app cache")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
 	cmd.Flags().Bool("headless", false, "Headless mode which provides api endpoint to build custom ui")
 	cmd.Flags().String("cookies-from-browser", "", "The name of the browser to load cookies from this option is used by yt-dlp see yt-dlp docs to see supported browsers")

@@ -2,8 +2,10 @@ package config
 
 import (
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 type YtDlpArgs struct {
@@ -14,20 +16,24 @@ type YtDlpArgs struct {
 type Config struct {
 	DebugDir      *string    `json:"debug-dir"`
 	CacheDisabled bool       `json:"disable-cache"`
+	CacheDir      *string    `json:"cache-dir"`
 	YtDlpArgs     *YtDlpArgs `json:"yt-dlp-args"`
 	HeadlessMode  bool       `json:"headless-mode"`
 }
 
 func GetConfigDir() string {
-	configDir := os.Getenv("XDG_CONFIG_HOME")
-	if configDir == "" {
-		homeDir, _ := os.UserHomeDir()
-		configDir = filepath.Join(homeDir, ".config")
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		slog.Error("Failed to get user config dir", "err", err)
+		return ""
 	}
 	return filepath.Join(configDir, "clispot")
 }
 
 func GetStateDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.Getenv("APPDATA"), "clispot")
+	}
 	stateDir := os.Getenv("XDG_STATE_HOME")
 	if stateDir == "" {
 		homeDir, _ := os.UserHomeDir()
@@ -36,11 +42,25 @@ func GetStateDir() string {
 	return filepath.Join(stateDir, "clispot")
 }
 
+func GetCacheDir() string {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		homeDir, _ := os.UserHomeDir()
+		if runtime.GOOS == "windows" {
+			return filepath.Join(os.Getenv("APPDATA"), "clispot", "cache")
+		}
+		return filepath.Join(homeDir, ".cache", "clispot")
+	}
+	return filepath.Join(cacheDir, "clispot")
+}
+
 func GetDefaultConfig() *Config {
 	defaultDebugDir := filepath.Join(GetStateDir(), "logs")
+	defaultCacheDir := GetCacheDir()
 	return &Config{
 		DebugDir:      &defaultDebugDir,
 		CacheDisabled: true,
+		CacheDir:      &defaultCacheDir,
 		YtDlpArgs:     &YtDlpArgs{},
 		HeadlessMode:  false,
 	}
@@ -50,18 +70,22 @@ func GetUserConfig() *Config {
 	configPath := filepath.Join(GetConfigDir(), "config.json")
 	fileStat, err := os.Stat(configPath)
 	if err != nil {
+		slog.Error("Failed to get user config", "err", err)
 		return GetDefaultConfig()
 	}
 	if fileStat.IsDir() {
+		slog.Error("User config is a directory", "path", configPath)
 		return GetDefaultConfig()
 	}
 	configFile, err := os.ReadFile(configPath)
 	if err != nil {
+		slog.Error("Failed to read user config", "err", err)
 		return GetDefaultConfig()
 	}
 	config := GetDefaultConfig()
 	err = json.Unmarshal(configFile, config)
 	if err != nil {
+		slog.Error("Failed to unmarshal user config", "err", err)
 		return GetDefaultConfig()
 	}
 	return config

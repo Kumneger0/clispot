@@ -71,16 +71,14 @@ func SearchAndDownloadMusic(
 		searchQuery += " " + artistNames[0]
 	}
 
-	home, _ := os.UserHomeDir()
-	cacheDir := filepath.Join(home, ".cache", "clispot", "yt-audio")
+	appConfig := config.GetConfig()
+	cacheDir := filepath.Join(*appConfig.CacheDir, "yt-audio")
 	err := os.MkdirAll(cacheDir, 0755)
 	if err != nil {
 		return nil, err
 	}
 
 	musicPath := filepath.Join(cacheDir, spotifyID+".m4a")
-
-	appConfig := config.GetConfig()
 
 	args := []string{
 		searchQuery,

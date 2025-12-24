@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"os"
+	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -324,9 +325,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 		if m.LyricsServerProcess != nil {
-			err := m.LyricsServerProcess.Signal(syscall.SIGTERM)
-			if err != nil {
-				slog.Error(err.Error())
+			if runtime.GOOS == "windows" {
+				err := m.LyricsServerProcess.Kill()
+				if err != nil {
+					slog.Error(err.Error())
+				}
+			} else {
+				err := m.LyricsServerProcess.Signal(os.Interrupt)
+				if err != nil {
+					slog.Error(err.Error())
+				}
 			}
 		}
 		return m, tea.Quit

@@ -151,7 +151,7 @@ func openFileInDefaultApp(path string) error {
 	case "darwin":
 		cmd = exec.Command("open", path)
 	case "windows":
-		//fuck you windows 🖕 i hate you
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", path)
 	default:
 		return fmt.Errorf("unsupported platform")
 	}

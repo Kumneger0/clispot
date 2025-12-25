@@ -1,39 +1,34 @@
 # Contributing to clispot
 
-We welcome contributions to clispot! Here are some ways you can contribute:
+Thank you for your interest in contributing to the Clispot CLI!
 
-- Reporting bugs
-- Requesting features
-- Submitting pull requests
+## Development Setup
 
-## Reporting Bugs
+1. **Fork and Clone**:
+   - Fork the [clispot](https://github.com/kumneger0/clispot) repository.
+   - Clone your fork locally:
+     ```bash
+     git clone https://github.com/YOUR_USERNAME/clispot.git
+     cd clispot
+     ```
 
-If you find a bug, please open an issue on our GitHub repository. Please include the following information in your issue:
+2. **Prerequisites**:
+   - Go 1.25 or higher.
+   - `yt-dlp` and `ffmpeg` installed in your PATH.
+   - **Spotify Developer Credentials**: You must have a Spotify Client ID and Client Secret exported as environment variables (`SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`).
 
-- A clear and descriptive title
-- A detailed description of the bug
-- Steps to reproduce the bug
-- The expected behavior
-- The actual behavior
-- Your operating system and terminal
+3. **Clone and Run**:
+   ```bash
+   go mod download
+   go run main.go
+   ```
 
-## Requesting Features
+## Pull Request Guidelines
 
-If you have an idea for a new feature, please open an issue on our GitHub repository. Please include the following information in your issue:
+- Follow standard Go formatting (`go fmt`).
+- Provide a clear description of the changes in your PR.
+- If you are adding a new feature, please update the documentation in the [clispot_docs](https://github.com/Kumneger0/clispot_docs) repository if applicable.
 
-- A clear and descriptive title
-- A detailed description of the feature
-- The problem that the feature solves
-- Any additional context or screenshots
+## Reporting Issues
 
-## Submitting Pull Requests
-
-If you would like to contribute code to clispot, please follow these steps:
-
-1.  Fork the repository
-2.  Create a new branch for your feature or bug fix
-3.  Make your changes
-4.  Test your changes
-5.  Submit a pull request
-
-Thank you for your interest in contributing to clispot!
+Use the GitHub Issues tab to report bugs or suggest features. Please provide environment details (OS, Go version) when reporting bugs.

@@ -24,8 +24,13 @@ type Config struct {
 func GetConfigDir() string {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		slog.Error("Failed to get user config dir", "err", err)
-		return ""
+		if runtime.GOOS == "windows" {
+			return filepath.Join(os.Getenv("APPDATA"), "clispot")
+		}
+		if runtime.GOOS == "darwin" {
+			return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "clispot")
+		}
+		return filepath.Join(os.Getenv("HOME"), ".config", "clispot")
 	}
 	return filepath.Join(configDir, "clispot")
 }
@@ -47,7 +52,10 @@ func GetCacheDir() string {
 	if err != nil {
 		homeDir, _ := os.UserHomeDir()
 		if runtime.GOOS == "windows" {
-			return filepath.Join(os.Getenv("APPDATA"), "clispot", "cache")
+			return filepath.Join(os.Getenv("LOCALAPPDATA"), "clispot")
+		}
+		if runtime.GOOS == "darwin" {
+			return filepath.Join(os.Getenv("HOME"), "Library", "Caches", "clispot")
 		}
 		return filepath.Join(homeDir, ".cache", "clispot")
 	}
@@ -82,6 +90,7 @@ func GetUserConfig() *Config {
 		slog.Error("Failed to read user config", "err", err)
 		return GetDefaultConfig()
 	}
+
 	config := GetDefaultConfig()
 	err = json.Unmarshal(configFile, config)
 	if err != nil {

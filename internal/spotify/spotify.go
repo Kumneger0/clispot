@@ -145,14 +145,18 @@ type Decoder struct {
 	Track            types.SpotifyUser
 }
 
-func makeRequest(method string, urlToMakeRequestTo string, authorizationHeader string, body io.Reader) (*http.Response, error) {
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+func makeRequest(client HTTPClient, method string, urlToMakeRequestTo string, authorizationHeader string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, urlToMakeRequestTo, body)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
 	}
 	req.Header.Add("Authorization", authorizationHeader)
-	return http.DefaultClient.Do(req)
+	return client.Do(req)
 }
 
 type APIClient interface {
@@ -168,22 +172,28 @@ type APIClient interface {
 	GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error)
 	SaveRemoveTrackForCurrentUser(accessToken string, trackIDs []string, isRemove bool) error
 	GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error)
+	GetPlaylistItems(accessToken string, playlistID string) (*types.PlaylistItemsResponse, error)
 }
 
 type APIClientImpl struct {
-	apiURL APIURLS
+	apiURL     APIURLS
+	httpClient HTTPClient
 }
 
-func NewAPIClient(apiURL APIURLS) *APIClientImpl {
+func NewAPIClient(apiURL APIURLS, httpClient HTTPClient) *APIClientImpl {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
 	return &APIClientImpl{
-		apiURL: apiURL,
+		apiURL:     apiURL,
+		httpClient: httpClient,
 	}
 }
 
 func (a *APIClientImpl) GetAlbumTracks(accessToken string, albumID string) (*types.AlbumTracksResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 
-	resp, err := makeRequest("GET", a.apiURL.GetAlbumTracksURL(albumID), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetAlbumTracksURL(albumID), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -204,7 +214,7 @@ func (a *APIClientImpl) GetAlbumTracks(accessToken string, albumID string) (*typ
 func (a *APIClientImpl) GetUserSavedAlbums(accessToken string) (*types.SavedAlbumsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 
-	resp, err := makeRequest("GET", a.apiURL.GetUserSavedAlbumsBaseURL(), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetUserSavedAlbumsBaseURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -225,7 +235,7 @@ func (a *APIClientImpl) GetUserSavedAlbums(accessToken string) (*types.SavedAlbu
 func (a *APIClientImpl) CheckUserSavedTrack(accessToken string, trackID string) ([]bool, error) {
 	authorizationHeader := "Bearer " + accessToken
 
-	resp, err := makeRequest("GET", a.apiURL.GetCheckUserSavedTrackURL()+trackID, authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetCheckUserSavedTrackURL()+trackID, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -266,7 +276,7 @@ func (a *APIClientImpl) SaveRemoveTrackForCurrentUser(accessToken string, trackI
 		method = "PUT"
 	}
 
-	resp, err := makeRequest(method, a.apiURL.GetUserSavedTrackURL(), authorizationHeader, body)
+	resp, err := makeRequest(a.httpClient, method, a.apiURL.GetUserSavedTrackURL(), authorizationHeader, body)
 	if err != nil {
 		return err
 	}
@@ -283,7 +293,7 @@ func (a *APIClientImpl) GetUserSavedTracks(accessToken string) (*types.UserSaved
 	authorizationHeader := "Bearer " + accessToken
 	params := url.Values{}
 	params.Add("limit", "30")
-	resp, err := makeRequest("GET", a.apiURL.GetUserSavedTrackURL()+"?"+params.Encode(), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetUserSavedTrackURL()+"?"+params.Encode(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -298,9 +308,9 @@ func (a *APIClientImpl) GetUserSavedTracks(accessToken string) (*types.UserSaved
 	return userSavedTracks, nil
 }
 
-func (a *APIClientImpl) Search(accessToken string, query string) (*types.SearchResponse, error) {
+func (a *APIClientImpl) GetSearchResults(accessToken string, query string) (*types.SearchResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", a.apiURL.GetSearchURL(query), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetSearchURL(query), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -317,9 +327,9 @@ func (a *APIClientImpl) Search(accessToken string, query string) (*types.SearchR
 	return searchResponse, nil
 }
 
-func (a *APIClientImpl) GetArtistsTopTrackURL(accessToken string, artistID string) (*types.ArtistsTopTrackResponse, error) {
+func (a *APIClientImpl) GetArtistsTopTrack(accessToken string, artistID string) (*types.ArtistsTopTrackResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", a.apiURL.GetArtistsTopTrackURL(artistID), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetArtistsTopTrackURL(artistID), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -337,7 +347,7 @@ func (a *APIClientImpl) GetArtistsTopTrackURL(accessToken string, artistID strin
 
 func (a *APIClientImpl) GetUserTopItems(accessToken string) (*types.UserTopItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", a.apiURL.GetUserTopItems(track), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetUserTopItems(track), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -355,7 +365,7 @@ func (a *APIClientImpl) GetUserTopItems(accessToken string) (*types.UserTopItems
 
 func (a *APIClientImpl) GetFollowedArtist(accessToken string) (*types.UserFollowedArtistResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", a.apiURL.GetFollowedArtistURL(), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetFollowedArtistURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -373,7 +383,7 @@ func (a *APIClientImpl) GetFollowedArtist(accessToken string) (*types.UserFollow
 
 func (a *APIClientImpl) GetUserPlaylists(accessToken string) (*types.UserPlaylistsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", a.apiURL.GetUserPlaylistsBaseURL(), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetUserPlaylistsBaseURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -389,10 +399,10 @@ func (a *APIClientImpl) GetUserPlaylists(accessToken string) (*types.UserPlaylis
 	return playlists, nil
 }
 
-func (a *APIClientImpl) GetPlaylistItems(playlistID string, accessToken string) (*types.PlaylistItemsResponse, error) {
+func (a *APIClientImpl) GetPlaylistItems(accessToken string, playlistID string) (*types.PlaylistItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 	playlistItemsURL := a.apiURL.GetPlaylistItems(playlistID)
-	resp, err := makeRequest("GET", playlistItemsURL, authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", playlistItemsURL, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -414,7 +424,7 @@ func (a *APIClientImpl) GetPlaylistItems(playlistID string, accessToken string) 
 
 func (a *APIClientImpl) GetUserProfile(accessToken string) (*types.SpotifyUserProfile, error) {
 	authorizationHeader := "Bearer " + accessToken
-	resp, err := makeRequest("GET", a.apiURL.GetUserProfileBaseURL(), authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetUserProfileBaseURL(), authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -433,10 +443,10 @@ func (a *APIClientImpl) GetUserProfile(accessToken string) (*types.SpotifyUserPr
 	return &userProfile, nil
 }
 
-func (a *APIClientImpl) GetTrack(trackID string, accessToken string) (*types.Track, error) {
+func (a *APIClientImpl) GetTrack(accessToken string, trackID string) (*types.Track, error) {
 	authorizationHeader := "Bearer " + accessToken
 	trackURL := a.apiURL.GetTrackURL(trackID)
-	resp, err := makeRequest("GET", trackURL, authorizationHeader, nil)
+	resp, err := makeRequest(a.httpClient, "GET", trackURL, authorizationHeader, nil)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err

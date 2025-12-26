@@ -78,7 +78,6 @@ func GetUserConfig() *Config {
 	configPath := filepath.Join(GetConfigDir(), "config.json")
 	fileStat, err := os.Stat(configPath)
 	if err != nil {
-		slog.Error("Failed to get user config", "err", err)
 		return GetDefaultConfig()
 	}
 	if fileStat.IsDir() {

@@ -33,6 +33,7 @@ builds:
         goarch: "386"
       - goos: darwin
         goarch: "386"
+    
 
     overrides:
       - goos: linux

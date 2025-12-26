@@ -253,7 +253,7 @@ func runRoot(cmd *cobra.Command) error {
 		FocusedOn:     ui.SideView,
 		DBusConn:      ins,
 		MainViewMode:  ui.NormalMode,
-		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL()),
+		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL(), nil),
 	}
 
 	reader, writer := io.Pipe()

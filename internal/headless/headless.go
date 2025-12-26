@@ -247,7 +247,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == FollowedArtist {
-			artistSongs, err := m.SpotifyClient.GetArtistsTopTrackURL(userToken.AccessToken, id)
+			artistSongs, err := m.SpotifyClient.GetArtistsTopTrack(userToken.AccessToken, id)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch artist tracks"}`, http.StatusInternalServerError)
@@ -281,7 +281,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == PlaylistType {
-			playlistItems, err := m.SpotifyClient.GetPlaylistItems(id, userToken.AccessToken)
+			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, id)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
@@ -395,7 +395,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		searchResults, err := m.SpotifyClient.Search(userToken.AccessToken, query)
+		searchResults, err := m.SpotifyClient.GetSearchResults(userToken.AccessToken, query)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)
@@ -489,7 +489,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if trackObject == nil {
-			track, err := m.SpotifyClient.GetTrack(reqBody.TrackID, userToken.AccessToken)
+			track, err := m.SpotifyClient.GetTrack(userToken.AccessToken, reqBody.TrackID)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)

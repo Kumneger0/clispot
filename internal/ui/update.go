@@ -544,7 +544,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 		loadingCmd := SendLoadingCmd()
 		searchingCmd := func() tea.Msg {
-			searchResult, err := m.SpotifyClient.Search(userToken.AccessToken, query)
+			searchResult, err := m.SpotifyClient.GetSearchResults(userToken.AccessToken, query)
 			return types.SpotifySearchResultMsg{
 				Result: searchResult,
 				Err:    err,
@@ -608,7 +608,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 	return func() tea.Msg {
-		artistSongs, err := m.SpotifyClient.GetArtistsTopTrackURL(accessToken, artistID)
+		artistSongs, err := m.SpotifyClient.GetArtistsTopTrack(accessToken, artistID)
 		if err != nil {
 			slog.Error(err.Error())
 			return types.UpdatePlaylistMsg{
@@ -661,7 +661,7 @@ func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 
 func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 	return func() tea.Msg {
-		playlistItems, err := m.SpotifyClient.GetPlaylistItems(playlistID, accessToken)
+		playlistItems, err := m.SpotifyClient.GetPlaylistItems(accessToken, playlistID)
 		return types.UpdatePlaylistMsg{
 			Playlist: playlistItems.Items,
 			Err:      err,

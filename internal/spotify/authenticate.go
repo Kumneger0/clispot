@@ -241,7 +241,7 @@ func RefreshToken(refreshToken string) (*types.UserTokenInfo, error) {
 }
 
 func saveUserCredentials(userCredentials types.UserTokenInfo) error {
-	dirPath := config.GetConfigDir()
+	dirPath := config.GetConfigDir(runtime.GOOS)
 	filePath := filepath.Join(dirPath, "token.json")
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
@@ -278,7 +278,7 @@ func saveUserCredentials(userCredentials types.UserTokenInfo) error {
 }
 
 func ReadUserCredentials() (*types.UserTokenInfo, error) {
-	dirPath := config.GetConfigDir()
+	dirPath := config.GetConfigDir(runtime.GOOS)
 	clispotCredentialPath := filepath.Join(dirPath, "token.json")
 
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {

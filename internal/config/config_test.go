@@ -9,7 +9,12 @@ import (
 )
 
 func TestGetConfigDir_LinuxFallback(t *testing.T) {
-	t.Setenv("HOME", "/home/kune")
+	original := userConfigDir
+	t.Cleanup(func() { userConfigDir = original })
+
+	userConfigDir = func() (string, error) {
+		return "/home/kune/.config", nil
+	}
 	dir := GetConfigDir("linux")
 	want := "/home/kune/.config/clispot"
 	assert.Equal(t, want, dir)
@@ -38,10 +43,9 @@ func TestGetConfigDir_DarwinFallback(t *testing.T) {
 	t.Cleanup(func() { userConfigDir = original })
 
 	userConfigDir = func() (string, error) {
-		return "", errors.New("boom")
+		return "/Users/kune/Library/Application Support", nil
 	}
 
-	t.Setenv("HOME", "/Users/kune")
 	dir := GetConfigDir("darwin")
 	want := filepath.Join(
 		`/Users/kune/Library/Application Support`,

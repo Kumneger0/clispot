@@ -5,6 +5,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 
@@ -107,7 +108,7 @@ func showAnotherProcessIsRunning(lockFilePath string) {
 
 func runRoot(cmd *cobra.Command) error {
 	debugDir, err := cmd.Flags().GetString("debug-dir")
-	configFromFile := config.GetUserConfig()
+	configFromFile := config.GetUserConfig(runtime.GOOS)
 
 	if !cmd.Flags().Changed("debug-dir") && configFromFile.DebugDir != nil {
 		debugDir = *configFromFile.DebugDir
@@ -223,7 +224,7 @@ func runRoot(cmd *cobra.Command) error {
 		token, err = spotify.RefreshToken(token.RefreshToken)
 		if err != nil {
 			slog.Error(err.Error())
-			clispotConfigDir := config.GetConfigDir()
+			clispotConfigDir := config.GetConfigDir(runtime.GOOS)
 			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotConfigDir)
 			os.Exit(1)
 		}
@@ -375,9 +376,9 @@ func doAllDepsInstalled() error {
 
 func Execute(version string) error {
 	cmd := newRootCmd(version)
-	defaultDebugDir := filepath.Join(config.GetStateDir(), "logs")
+	defaultDebugDir := filepath.Join(config.GetStateDir(runtime.GOOS), "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
-	cmd.Flags().StringP("cache-dir", "c", config.GetCacheDir(), "a path to store app cache")
+	cmd.Flags().StringP("cache-dir", "c", config.GetCacheDir(runtime.GOOS), "a path to store app cache")
 	cmd.Flags().Bool("disable-cache", false, "disable cache")
 	cmd.Flags().Bool("headless", false, "Headless mode which provides api endpoint to build custom ui")
 	cmd.Flags().String("cookies-from-browser", "", "The name of the browser to load cookies from this option is used by yt-dlp see yt-dlp docs to see supported browsers")

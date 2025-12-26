@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 )
 
 type YtDlpArgs struct {
@@ -21,13 +20,21 @@ type Config struct {
 	HeadlessMode  bool       `json:"headless-mode"`
 }
 
-func GetConfigDir() string {
-	configDir, err := os.UserConfigDir()
+var userConfigDir = os.UserConfigDir
+var userCacheDir = os.UserCacheDir
+var userHomeDir = os.UserHomeDir
+
+func GetConfigDir(goos string) string {
+	configDir, err := userConfigDir()
 	if err != nil {
-		if runtime.GOOS == "windows" {
+		if goos == "windows" {
 			return filepath.Join(os.Getenv("APPDATA"), "clispot")
 		}
-		if runtime.GOOS == "darwin" {
+		xdgConfig := os.Getenv("XDG_CONFIG_HOME")
+		if xdgConfig != "" {
+			return filepath.Join(xdgConfig, "clispot")
+		}
+		if goos == "darwin" {
 			return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "clispot")
 		}
 		return filepath.Join(os.Getenv("HOME"), ".config", "clispot")
@@ -35,26 +42,29 @@ func GetConfigDir() string {
 	return filepath.Join(configDir, "clispot")
 }
 
-func GetStateDir() string {
-	if runtime.GOOS == "windows" {
+func GetStateDir(goos string) string {
+	if goos == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), "clispot")
+	}
+	if goos == "darwin" {
+		return filepath.Join(os.Getenv("HOME"), "Library", "State", "clispot")
 	}
 	stateDir := os.Getenv("XDG_STATE_HOME")
 	if stateDir == "" {
-		homeDir, _ := os.UserHomeDir()
+		homeDir, _ := userHomeDir()
 		stateDir = filepath.Join(homeDir, ".local", "state")
 	}
 	return filepath.Join(stateDir, "clispot")
 }
 
-func GetCacheDir() string {
-	cacheDir, err := os.UserCacheDir()
+func GetCacheDir(goos string) string {
+	cacheDir, err := userCacheDir()
 	if err != nil {
-		homeDir, _ := os.UserHomeDir()
-		if runtime.GOOS == "windows" {
+		homeDir, _ := userHomeDir()
+		if goos == "windows" {
 			return filepath.Join(os.Getenv("LOCALAPPDATA"), "clispot")
 		}
-		if runtime.GOOS == "darwin" {
+		if goos == "darwin" {
 			return filepath.Join(os.Getenv("HOME"), "Library", "Caches", "clispot")
 		}
 		return filepath.Join(homeDir, ".cache", "clispot")
@@ -62,9 +72,9 @@ func GetCacheDir() string {
 	return filepath.Join(cacheDir, "clispot")
 }
 
-func GetDefaultConfig() *Config {
-	defaultDebugDir := filepath.Join(GetStateDir(), "logs")
-	defaultCacheDir := GetCacheDir()
+func GetDefaultConfig(goos string) *Config {
+	defaultDebugDir := filepath.Join(GetStateDir(goos), "logs")
+	defaultCacheDir := GetCacheDir(goos)
 	return &Config{
 		DebugDir:      &defaultDebugDir,
 		CacheDisabled: true,
@@ -74,27 +84,27 @@ func GetDefaultConfig() *Config {
 	}
 }
 
-func GetUserConfig() *Config {
-	configPath := filepath.Join(GetConfigDir(), "config.json")
+func GetUserConfig(goos string) *Config {
+	configPath := filepath.Join(GetConfigDir(goos), "config.json")
 	fileStat, err := os.Stat(configPath)
 	if err != nil {
-		return GetDefaultConfig()
+		return GetDefaultConfig(goos)
 	}
 	if fileStat.IsDir() {
 		slog.Error("User config is a directory", "path", configPath)
-		return GetDefaultConfig()
+		return GetDefaultConfig(goos)
 	}
 	configFile, err := os.ReadFile(configPath)
 	if err != nil {
 		slog.Error("Failed to read user config", "err", err)
-		return GetDefaultConfig()
+		return GetDefaultConfig(goos)
 	}
 
-	config := GetDefaultConfig()
+	config := GetDefaultConfig(goos)
 	err = json.Unmarshal(configFile, config)
 	if err != nil {
 		slog.Error("Failed to unmarshal user config", "err", err)
-		return GetDefaultConfig()
+		return GetDefaultConfig(goos)
 	}
 	return config
 }

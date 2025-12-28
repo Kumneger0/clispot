@@ -365,22 +365,22 @@ func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs))
 		line := scanner.Text()
 		if strings.Contains(strings.ToLower(line), "error") {
 			scanFunc(ScanFuncArgs{
-				Line:    line,
+				Line:    afterKeyword(line, "error"),
 				LogType: ERROR,
 			})
 		} else if strings.Contains(strings.ToLower(line), "warning") {
 			scanFunc(ScanFuncArgs{
-				Line:    line,
+				Line:    afterKeyword(line, "warning"),
 				LogType: WARNING,
 			})
 		} else if strings.Contains(strings.ToLower(line), "download") {
 			scanFunc(ScanFuncArgs{
-				Line:    line,
+				Line:    afterKeyword(line, "download"),
 				LogType: DOWNLOAD,
 			})
 		} else if strings.Contains(strings.ToLower(line), "youtube") {
 			scanFunc(ScanFuncArgs{
-				Line:    line,
+				Line:    afterKeyword(line, "youtube"),
 				LogType: YOUTUBE,
 			})
 		} else {
@@ -390,4 +390,16 @@ func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs))
 			})
 		}
 	}
+}
+
+func afterKeyword(line, keyword string) string {
+	lower := strings.ToLower(line)
+	keyword = strings.ToLower(keyword)
+
+	idx := strings.Index(lower, keyword)
+	if idx == -1 {
+		return line
+	}
+
+	return strings.TrimSpace(line[idx+len(keyword):])
 }

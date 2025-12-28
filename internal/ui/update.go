@@ -318,6 +318,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m.handleMusicChange(true, true)
 	case "q", "ctrl+c":
+		if m.FocusedOn == SearchBar {
+			return m, nil
+		}
 		if m.PlayerProcess != nil {
 			err := m.PlayerProcess.Close(true)
 			if err != nil {

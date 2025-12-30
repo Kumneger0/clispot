@@ -290,11 +290,22 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 	ctx, ready, err := getOtoContext()
 	if err != nil {
 		slog.Error(err.Error())
-		_ = f.Close()
-		_ = pw.Close()
-		_ = pr.Close()
+		err = f.Close()
+		if err != nil {
+			slog.Error(err.Error())
+		}
+		err = pw.Close()
+		if err != nil {
+			slog.Error(err.Error())
+		}
+		err = pr.Close()
+		if err != nil {
+			slog.Error(err.Error())
+		}
 		if ff.Process != nil {
-			_ = ff.Process.Kill()
+			if err := ff.Process.Kill(); err != nil {
+				slog.Error(err.Error())
+			}
 		}
 		return nil, false, err
 	}
@@ -316,11 +327,23 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			var firstErr error
 
 			if player != nil {
-				player.Close()
+				err := player.Close()
+				if err != nil {
+					slog.Error(err.Error())
+				}
 			}
-			_ = f.Close()
-			_ = pw.Close()
-			_ = pr.Close()
+			err = f.Close()
+			if err != nil {
+				slog.Error(err.Error())
+			}
+			err = pw.Close()
+			if err != nil {
+				slog.Error(err.Error())
+			}
+			err = pr.Close()
+			if err != nil {
+				slog.Error(err.Error())
+			}
 
 			if ff.Process != nil {
 				if err := ff.Process.Kill(); err != nil {
@@ -330,10 +353,16 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			}
 
 			if ytStderr != nil {
-				_ = ytStderr.Close()
+				err = ytStderr.Close()
+				if err != nil {
+					slog.Error(err.Error())
+				}
 			}
 			if ffStderr != nil {
-				_ = ffStderr.Close()
+				err = ffStderr.Close()
+				if err != nil {
+					slog.Error(err.Error())
+				}
 			}
 
 			return firstErr

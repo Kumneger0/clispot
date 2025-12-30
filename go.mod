@@ -10,13 +10,14 @@ require (
 	github.com/ebitengine/oto/v3 v3.4.0
 	github.com/gen2brain/beeep v0.11.2
 	github.com/go-critic/go-critic v0.14.2
-	github.com/godbus/dbus/v5 v5.1.0
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gofrs/flock v0.13.0
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/gotesttools/gotestfmt/v2 v2.5.0
 	github.com/muesli/mango-cobra v1.3.0
 	github.com/muesli/roff v0.1.0
 	github.com/spf13/cobra v1.10.2
+	github.com/stretchr/testify v1.11.1
 	go.dalton.dog/bubbleup v1.1.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
 	golang.org/x/tools v0.40.0
@@ -199,7 +200,6 @@ require (
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.2.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	github.com/tdakkota/asciicheck v0.4.1 // indirect

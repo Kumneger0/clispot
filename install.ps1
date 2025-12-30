@@ -42,8 +42,10 @@ if ($env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
     $target = "Windows_x86_64"
 }
 elseif ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
-    # Note: Check if ARM64 is actually supported in releases, usually it is x86_64 for Windows
     $target = "Windows_arm64"
+}
+elseif ($env:PROCESSOR_ARCHITECTURE -eq 'x86') {
+    $target = "Windows_386"
 }
 else {
     Write-Error "Unsupported architecture: $env:PROCESSOR_ARCHITECTURE"
@@ -55,16 +57,23 @@ if ($v) {
     $version = $v.Replace('v', '')
 }
 else {
-    Write-Info "Fetching latest version info..."
-    $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest"
-    $version = $latestRelease.tag_name.Replace('v', '')
+    try {
+        $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest"
+        $version = $latestRelease.tag_name.Replace('v', '')
+    }
+    catch {
+        Write-Error "Failed to fetch latest version from GitHub API: $($_.Exception.Message)"
+        Write-Host "Try passing the version manually, for example:" -ForegroundColor 'Yellow'
+        Write-Host '$v = "0.4.0"; Get-Content .\install.ps1 -Raw | iex' -ForegroundColor 'Yellow'
+        exit
+    }
 }
 
 Write-Info "Installing clispot v$version for $target..."
 
 # Download
-$archivePath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "clispot.zip")
-$downloadUrl = "https://github.com/$repo/releases/download/v$version/clispot_$($target).zip"
+$archivePath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "clispot.tar.gz")
+$downloadUrl = "https://github.com/$repo/releases/download/v$version/clispot_$($target).tar.gz"
 
 Write-Info "Downloading from $downloadUrl..."
 Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath -UseBasicParsing
@@ -75,7 +84,7 @@ if (-not (Test-Path $binDir)) {
 }
 
 Write-Info "Extracting to $binDir..."
-Expand-Archive -Path $archivePath -DestinationPath $binDir -Force
+tar -xzf $archivePath -C $binDir
 
 # Cleanup
 Remove-Item -Path $archivePath -Force -ErrorAction SilentlyContinue

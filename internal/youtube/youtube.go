@@ -176,7 +176,9 @@ func SearchAndDownloadMusic(
 	}
 
 	player := ctx.NewPlayer(counter)
-	player.Play()
+	go func() {
+		player.Play()
+	}()
 
 	return &Player{
 		OtoPlayer:         player,
@@ -314,7 +316,10 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 	}
 
 	player := ctx.NewPlayer(counter)
-	player.Play()
+
+	go func() {
+		player.Play()
+	}()
 
 	return &Player{
 		OtoPlayer:         player,

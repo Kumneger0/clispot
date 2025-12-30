@@ -279,7 +279,6 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		slog.Error(err.Error())
 		notificationTitle := "Audio Processing Failed"
 		notificationMessage := err.Error()
-		err = f.Close()
 		if closeErr := f.Close(); closeErr != nil {
 			slog.Error(closeErr.Error())
 		}
@@ -290,21 +289,18 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 	ctx, ready, err := getOtoContext()
 	if err != nil {
 		slog.Error(err.Error())
-		err = f.Close()
-		if err != nil {
-			slog.Error(err.Error())
+		if closeErr := f.Close(); closeErr != nil {
+			slog.Error(closeErr.Error())
 		}
-		err = pw.Close()
-		if err != nil {
-			slog.Error(err.Error())
+		if closeErr := pw.Close(); closeErr != nil {
+			slog.Error(closeErr.Error())
 		}
-		err = pr.Close()
-		if err != nil {
-			slog.Error(err.Error())
+		if closeErr := pr.Close(); closeErr != nil {
+			slog.Error(closeErr.Error())
 		}
 		if ff.Process != nil {
-			if err := ff.Process.Kill(); err != nil {
-				slog.Error(err.Error())
+			if killErr := ff.Process.Kill(); killErr != nil {
+				slog.Error(killErr.Error())
 			}
 		}
 		return nil, false, err

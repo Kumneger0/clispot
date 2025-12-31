@@ -89,8 +89,8 @@ func isProcessRunning(pid int) bool {
 
 func showAnotherProcessIsRunning(lockFilePath string) {
 	if runtime.GOOS == "windows" {
-		// windows doesn't allow us to read the content of the if the file is acquired by another process
-		fmt.Println("Another instance of clispot is not running")
+		// Windows doesn't allow us to read the content of the file if the file is acquired by another process
+		fmt.Fprintf(os.Stderr, "Another instance of clispot is already running.\n")
 		return
 	}
 	pidBytes, readErr := os.ReadFile(lockFilePath)

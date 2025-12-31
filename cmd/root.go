@@ -42,12 +42,14 @@ func newRootCmd(version string) *cobra.Command {
 		Short: "spotify music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			lockFilePath := filepath.Join(os.TempDir(), "clispot.lock")
+
 			fileLock := flock.New(lockFilePath)
 			locked, err := fileLock.TryLock()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error trying to acquire lock: %v\n", err)
 				os.Exit(1)
 			}
+
 			if !locked {
 				showAnotherProcessIsRunning(lockFilePath)
 				os.Exit(1)
@@ -59,10 +61,13 @@ func newRootCmd(version string) *cobra.Command {
 				_ = os.Remove(lockFilePath)
 			}()
 
-			pid := os.Getpid()
-			if err := os.WriteFile(lockFilePath, []byte(strconv.Itoa(pid)), 0644); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
+			if runtime.GOOS != "windows" {
+				pid := os.Getpid()
+				if err := os.WriteFile(lockFilePath, []byte(strconv.Itoa(pid)), 0644); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
+				}
 			}
+
 			return runRoot(cmd)
 		},
 	}
@@ -83,6 +88,11 @@ func isProcessRunning(pid int) bool {
 }
 
 func showAnotherProcessIsRunning(lockFilePath string) {
+	if runtime.GOOS == "windows" {
+		// windows doesn't allow us to read the content of the if the file is acquired by another process
+		fmt.Println("Another instance of clispot is not running")
+		return
+	}
 	pidBytes, readErr := os.ReadFile(lockFilePath)
 	if readErr != nil {
 		if os.IsNotExist(readErr) {

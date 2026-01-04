@@ -8,12 +8,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/ebitengine/oto/v3"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/notification"
+	"golang.org/x/sys/windows"
 )
 
 type Player struct {
@@ -119,6 +122,11 @@ func SearchAndDownloadMusic(
 	}
 
 	yt := exec.Command("yt-dlp", args...)
+
+	yt.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
 	yt.Stderr = ytdlpWriter
 
 	ytOut, err := yt.StdoutPipe()
@@ -153,6 +161,10 @@ func SearchAndDownloadMusic(
 		"pipe:1",
 	)
 
+	ff.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
 	ff.Stdin = reader
 	ff.Stderr = ffStderr
 
@@ -185,19 +197,20 @@ func SearchAndDownloadMusic(
 		ByteCounterReader: counter,
 		Close: func(isSkip bool) error {
 			var firstErr error
-
 			if player != nil {
 				player.Close()
 			}
-
 			if ff.Process != nil {
-				if err := ff.Process.Kill(); err != nil {
+				err := KillProcess(ff.Process)
+				if err != nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}
 			}
+
 			if yt.Process != nil {
-				if err := yt.Process.Kill(); err != nil && firstErr == nil {
+				err := KillProcess(yt.Process)
+				if err != nil && firstErr == nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}
@@ -271,6 +284,10 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		"pipe:1",
 	)
 
+	ff.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
 	ff.Stdin = f
 	ff.Stderr = ffStderr
 
@@ -301,8 +318,9 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			slog.Error(closeErr.Error())
 		}
 		if ff.Process != nil {
-			if killErr := ff.Process.Kill(); killErr != nil {
-				slog.Error(killErr.Error())
+			err := KillProcess(ff.Process)
+			if err != nil {
+				slog.Error(err.Error())
 			}
 		}
 		return nil, false, err
@@ -347,7 +365,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			}
 
 			if ff.Process != nil {
-				if err := ff.Process.Kill(); err != nil {
+				if err := KillProcess(ff.Process); err != nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}
@@ -432,4 +450,15 @@ func afterKeyword(line, keyword string) string {
 	}
 
 	return strings.TrimSpace(line[idx+len(keyword):])
+}
+
+func KillProcess(p *os.Process) error {
+	var err error
+	if runtime.GOOS == "windows" {
+		// this is b/c fucking windows, it is not allowing us to kill the process using process.Kill
+		err = windows.GenerateConsoleCtrlEvent(syscall.CTRL_C_EVENT, uint32(p.Pid))
+	} else {
+		err = p.Kill()
+	}
+	return err
 }

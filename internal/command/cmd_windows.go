@@ -3,6 +3,7 @@
 package command
 
 import (
+	"log/slog"
 	"os"
 	"os/exec"
 	"syscall"
@@ -13,11 +14,15 @@ import (
 func ExecCommand(command string, args ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(command, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP,
 	}
 	return cmd, nil
 }
 
 func KillProcess(p *os.Process) error {
-	return windows.GenerateConsoleCtrlEvent(syscall.CTRL_C_EVENT, uint32(p.Pid))
+	if err := p.Kill(); err != nil {
+		slog.Error(err.Error())
+		return windows.GenerateConsoleCtrlEvent(windows.CTRL_C_EVENT, uint32(p.Pid))
+	}
+	return nil
 }

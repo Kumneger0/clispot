@@ -8,15 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/ebitengine/oto/v3"
+	"github.com/kumneger0/clispot/internal/command"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/notification"
-	"golang.org/x/sys/windows"
 )
 
 type Player struct {
@@ -121,11 +119,7 @@ func SearchAndDownloadMusic(
 		slog.Error("cached audio is not playable trying to play from youtube")
 	}
 
-	yt := exec.Command("yt-dlp", args...)
-
-	yt.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
+	yt, _ := command.ExecCommand("yt-dlp", args...)
 
 	yt.Stderr = ytdlpWriter
 
@@ -152,7 +146,7 @@ func SearchAndDownloadMusic(
 		reader = ytOut
 	}
 
-	ff := exec.Command("ffmpeg",
+	ff, _ := command.ExecCommand("ffmpeg",
 		"-i", "pipe:0",
 		"-f", "s16le",
 		"-acodec", "pcm_s16le",
@@ -160,10 +154,6 @@ func SearchAndDownloadMusic(
 		"-ar", "44100",
 		"pipe:1",
 	)
-
-	ff.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
 
 	ff.Stdin = reader
 	ff.Stderr = ffStderr
@@ -201,7 +191,7 @@ func SearchAndDownloadMusic(
 				player.Close()
 			}
 			if ff.Process != nil {
-				err := KillProcess(ff.Process)
+				err := command.KillProcess(ff.Process)
 				if err != nil {
 					slog.Error(err.Error())
 					firstErr = err
@@ -209,7 +199,7 @@ func SearchAndDownloadMusic(
 			}
 
 			if yt.Process != nil {
-				err := KillProcess(yt.Process)
+				err := command.KillProcess(yt.Process)
 				if err != nil && firstErr == nil {
 					slog.Error(err.Error())
 					firstErr = err
@@ -250,7 +240,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		return nil, false, err
 	}
 
-	cmd := exec.Command(
+	cmd, _ := command.ExecCommand(
 		"ffprobe",
 		"-v", "error",
 		"-select_streams", "a:0",
@@ -275,7 +265,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		return nil, false, err
 	}
 
-	ff := exec.Command("ffmpeg",
+	ff, _ := command.ExecCommand("ffmpeg",
 		"-i", "pipe:0",
 		"-f", "s16le",
 		"-acodec", "pcm_s16le",
@@ -283,10 +273,6 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		"-ar", "44100",
 		"pipe:1",
 	)
-
-	ff.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
 
 	ff.Stdin = f
 	ff.Stderr = ffStderr
@@ -318,7 +304,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			slog.Error(closeErr.Error())
 		}
 		if ff.Process != nil {
-			err := KillProcess(ff.Process)
+			err := command.KillProcess(ff.Process)
 			if err != nil {
 				slog.Error(err.Error())
 			}
@@ -365,7 +351,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			}
 
 			if ff.Process != nil {
-				if err := KillProcess(ff.Process); err != nil {
+				if err := command.KillProcess(ff.Process); err != nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}
@@ -450,15 +436,4 @@ func afterKeyword(line, keyword string) string {
 	}
 
 	return strings.TrimSpace(line[idx+len(keyword):])
-}
-
-func KillProcess(p *os.Process) error {
-	var err error
-	if runtime.GOOS == "windows" {
-		// this is b/c fucking windows, it is not allowing us to kill the process using process.Kill
-		err = windows.GenerateConsoleCtrlEvent(syscall.CTRL_C_EVENT, uint32(p.Pid))
-	} else {
-		err = p.Kill()
-	}
-	return err
 }

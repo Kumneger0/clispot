@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/godbus/dbus/v5"
+	"github.com/kumneger0/clispot/internal/command"
 	"github.com/kumneger0/clispot/internal/lyrics"
 	"github.com/kumneger0/clispot/internal/notification"
 	"github.com/kumneger0/clispot/internal/spotify"
@@ -326,7 +327,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			}
 		}
 		if m.LyricsServerProcess != nil {
-			err := youtube.KillProcess(m.LyricsServerProcess)
+			err := command.KillProcess(m.LyricsServerProcess)
 			if err != nil {
 				slog.Error(err.Error())
 			}

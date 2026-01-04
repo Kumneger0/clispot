@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
-	"syscall"
 	"time"
+
+	"github.com/kumneger0/clispot/internal/command"
 )
 
 const (
@@ -95,10 +95,8 @@ func IsLyricsServerRunning() (bool, error) {
 }
 
 func StartLyricsServer() (*os.Process, error) {
-	cmd := exec.Command("clispot-lyrics")
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
+	cmd, _ := command.ExecCommand("clispot-lyrics")
+
 	err := cmd.Start()
 	if err != nil {
 		slog.Error(err.Error())

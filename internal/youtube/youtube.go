@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -191,13 +193,25 @@ func SearchAndDownloadMusic(
 			}
 
 			if ff.Process != nil {
-				if err := ff.Process.Kill(); err != nil {
+				var err error
+				if runtime.GOOS == "windows" {
+					err = exec.Command("taskkill", "/PID", strconv.Itoa(ff.Process.Pid), "/F", "/T").Run()
+				} else {
+					err = ff.Process.Kill()
+				}
+				if err != nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}
 			}
 			if yt.Process != nil {
-				if err := yt.Process.Kill(); err != nil && firstErr == nil {
+				var err error
+				if runtime.GOOS == "windows" {
+					err = exec.Command("taskkill", "/PID", strconv.Itoa(yt.Process.Pid), "/F", "/T").Run()
+				} else {
+					err = yt.Process.Kill()
+				}
+				if err != nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}
@@ -301,8 +315,14 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			slog.Error(closeErr.Error())
 		}
 		if ff.Process != nil {
-			if killErr := ff.Process.Kill(); killErr != nil {
-				slog.Error(killErr.Error())
+			var err error
+			if runtime.GOOS == "windows" {
+				err = exec.Command("taskkill", "/PID", strconv.Itoa(ff.Process.Pid), "/F", "/T").Run()
+			} else {
+				err = ff.Process.Kill()
+			}
+			if err != nil {
+				slog.Error(err.Error())
 			}
 		}
 		return nil, false, err
@@ -345,9 +365,14 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 			if err != nil {
 				slog.Error(err.Error())
 			}
-
 			if ff.Process != nil {
-				if err := ff.Process.Kill(); err != nil {
+				var err error
+				if runtime.GOOS == "windows" {
+					err = exec.Command("taskkill", "/PID", strconv.Itoa(ff.Process.Pid), "/F", "/T").Run()
+				} else {
+					err = ff.Process.Kill()
+				}
+				if err != nil {
 					slog.Error(err.Error())
 					firstErr = err
 				}

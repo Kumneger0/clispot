@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 )
 
@@ -95,6 +96,9 @@ func IsLyricsServerRunning() (bool, error) {
 
 func StartLyricsServer() (*os.Process, error) {
 	cmd := exec.Command("clispot-lyrics")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
 	err := cmd.Start()
 	if err != nil {
 		slog.Error(err.Error())

@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"os"
+	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -329,12 +330,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		if m.LyricsServerProcess != nil {
 			if runtime.GOOS == "windows" {
-				err := m.LyricsServerProcess.Kill()
+				err := exec.Command("taskkill", "/PID", strconv.Itoa(m.LyricsServerProcess.Pid), "/F", "/T").Run()
 				if err != nil {
 					slog.Error(err.Error())
 				}
 			} else {
-				err := m.LyricsServerProcess.Signal(os.Interrupt)
+				err := m.LyricsServerProcess.Kill()
 				if err != nil {
 					slog.Error(err.Error())
 				}

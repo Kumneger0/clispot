@@ -585,6 +585,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		loadingCmd := SendLoadingCmd()
 		cmd := m.getArtistTracks(userToken.AccessToken, selectedItem.ID)
 		m.MainViewMode = NormalMode
+		m.FocusedOn = MainView
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultPlaylist {
@@ -596,6 +597,8 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 		loadingCmd := SendLoadingCmd()
 		cmd := m.getPlaylistItems(userToken.AccessToken, selectedItem.ID)
+		m.MainViewMode = NormalMode
+		m.FocusedOn = MainView
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultTrack {

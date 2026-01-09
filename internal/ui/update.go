@@ -73,9 +73,6 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 	return m, nil
 }
 
-type CloseAlertMsg struct {
-}
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
@@ -147,41 +144,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, alertCmd)
 	case types.UpdatePlayedSeconds:
-		m.PlayedSeconds = msg.CurrentSeconds
-		cmd := func() tea.Cmd {
-			if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
-				return nil
-			}
-			//the more music we play the more timer we create and that is causing high cpu usage
-			// we can prevent that by comparing the track id with the selected one
-			if msg.TrackID != m.SelectedTrack.Track.Track.ID {
-				return nil
-			}
-			return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-				if m.PlayerProcess != nil {
-					currentSeconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
-					return types.UpdatePlayedSeconds{
-						CurrentSeconds: currentSeconds,
-						TrackID:        msg.TrackID,
-					}
-				}
-				return nil
-			})
+		if m.PlayerProcess == nil {
+			return m, nil
 		}
-		var totalDurationInSeconds int
-
-		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-			totalDurationInSeconds = m.SelectedTrack.Track.Track.DurationMS / 1000
+		if !m.PlayerProcess.OtoPlayer.IsPlaying() {
+			return m, nil
 		}
-		diff := float64(totalDurationInSeconds) - (m.PlayedSeconds)
 
-		if diff < 4 {
+		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
+			return m, nil
+		}
+
+		if msg.TrackID != m.SelectedTrack.Track.Track.ID {
+			return m, nil
+		}
+
+		m.PlayedSeconds = m.PlayerProcess.ByteCounterReader.CurrentSeconds()
+
+		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationMS / 1000
+		if (float64(totalDurationInSeconds) - (m.PlayedSeconds)) < 4 {
 			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true, false)
 			m = model
 			cmds = append(cmds, cmd)
 		}
-		cmds = append(cmds, cmd())
+
+		trackID := m.SelectedTrack.Track.Track.ID
+
+		cmd := tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+			return types.UpdatePlayedSeconds{
+				TrackID: trackID,
+			}
+		})
+		cmds = append(cmds, cmd)
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width - 4
 		m.Height = msg.Height - 4
@@ -693,16 +688,15 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
 		return m, alertCmd
 	}
-	cmd := tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+
+	cmd := func() tea.Msg {
 		if process != nil {
-			currentSeconds := process.ByteCounterReader.CurrentSeconds()
 			return types.UpdatePlayedSeconds{
-				CurrentSeconds: currentSeconds,
-				TrackID:        selectedMusic.Track.ID,
+				TrackID: selectedMusic.Track.ID,
 			}
 		}
 		return nil
-	})
+	}
 
 	cmds = append(cmds, cmd)
 

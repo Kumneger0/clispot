@@ -12,6 +12,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -69,6 +70,21 @@ func newRootCmd(version string) *cobra.Command {
 			}
 
 			return runRoot(cmd)
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			if memFile != "" {
+				f, err := os.Create(memFile)
+				if err != nil {
+					log.Fatal("could not create memory profile: ", err)
+				}
+				defer f.Close()
+				if err := pprof.WriteHeapProfile(f); err != nil {
+					log.Fatal("could not write memory profile: ", err)
+				}
+			}
+			if cpuFile != "" {
+				pprof.StopCPUProfile()
+			}
 		},
 	}
 
@@ -384,8 +400,30 @@ func doAllDepsInstalled() error {
 	return error
 }
 
+var (
+	cpuFile string
+	memFile string
+)
+
 func Execute(version string) error {
 	cmd := newRootCmd(version)
+	cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
+	cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
+
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if cpuFile != "" {
+			f, err := os.Create(cpuFile)
+			if err != nil {
+				return fmt.Errorf("could not create CPU profile: %w", err)
+			}
+			if err := pprof.StartCPUProfile(f); err != nil {
+				f.Close()
+				return fmt.Errorf("could not start CPU profile: %w", err)
+			}
+		}
+		return nil
+	}
+
 	defaultDebugDir := filepath.Join(config.GetStateDir(runtime.GOOS), "logs")
 	cmd.Flags().StringP("debug-dir", "d", defaultDebugDir, "a path to store app logs")
 	cmd.Flags().StringP("cache-dir", "c", config.GetCacheDir(runtime.GOOS), "a path to store app cache")

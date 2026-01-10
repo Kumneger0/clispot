@@ -515,7 +515,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			items = append(items, item)
 		}
 		m.MusicQueueList.SetItems(items)
-		m.MusicQueueList.Select(m.SelectedPlayListItems.GlobalIndex())
+		m.MusicQueueList.Select(m.MusicQueueList.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic, false)
 	}
 	userToken := m.GetUserToken()

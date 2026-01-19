@@ -18,7 +18,7 @@ require (
 	github.com/muesli/roff v0.1.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	go.dalton.dog/bubbleup v1.1.0
+	go.dalton.dog/bubbleup v1.2.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
 	golang.org/x/sys v0.39.0
 	golang.org/x/tools v0.40.0

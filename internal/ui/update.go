@@ -512,7 +512,11 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 		var items []list.Item
 		for _, item := range m.SelectedPlayListItems.Items() {
-			items = append(items, item)
+			playlistItem := types.PlaylistTrackObject{
+				Track:         item.(types.PlaylistTrackObject).Track,
+				IsItFromQueue: true,
+			}
+			items = append(items, playlistItem)
 		}
 		m.MusicQueueList.SetItems(items)
 		m.MusicQueueList.Select(m.MusicQueueList.GlobalIndex())
@@ -814,6 +818,9 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 		m.FocusedOn = next
 	}
 
+	m.SelectedPlayListItems.SetDelegate(CustomDelegate{Model: m})
+	m.MusicQueueList.SetDelegate(CustomDelegate{Model: m})
+	m.Playlist.SetDelegate(CustomDelegate{Model: m})
 	return *m, nil
 }
 

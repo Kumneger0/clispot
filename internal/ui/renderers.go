@@ -38,24 +38,26 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	case types.PlaylistTrackObject:
 		title = item.FilterValue()
 		if d.Model != nil {
-			isSelected = (d.Model.FocusedOn == MainView || d.Model.FocusedOn == QueueList) && m.Index() == index
+			if d.Model.FocusedOn == QueueList && item.IsItFromQueue {
+				isSelected = m.Index() == index
+			} else if d.Model.FocusedOn == MainView && item.IsItFromQueue == false {
+				isSelected = m.Index() == index
+			}
 		}
 	case types.Artist:
 		title = item.FilterValue()
 		if d.Model != nil {
 			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
 		}
-	case types.Playlist:
+	case types.Playlist, spotify.UserSavedTracksListItem:
 		title = item.FilterValue()
 		if d.Model != nil {
 			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
 		}
-	case spotify.UserSavedTracksListItem:
-		title = item.FilterValue()
 	default:
 	}
 	str := lipgloss.NewStyle().Render(title)
-	if isSelected || index == m.Index() {
+	if isSelected {
 		fmt.Fprint(w, selectedStyle.Render(" "+str+" "))
 	} else {
 		fmt.Fprint(w, normalStyle.Render(" "+str+" "))

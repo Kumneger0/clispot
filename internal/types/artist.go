@@ -23,16 +23,17 @@ type ArtistsResponse struct {
 }
 
 type Artist struct {
-	ExternalURLs ExternalURLs    `json:"external_urls"`
-	Href         string          `json:"href"`
-	ID           string          `json:"id"`
-	Name         string          `json:"name"`
-	Type         string          `json:"type"`
-	URI          string          `json:"uri"`
-	Followers    *Followers      `json:"followers"`
-	Genres       []*string       `json:"genres"`
-	Images       []*SpotifyImage `json:"images"`
-	Popularity   *int            `json:"popularity"`
+	ExternalURLs   ExternalURLs    `json:"external_urls"`
+	Href           string          `json:"href"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Type           string          `json:"type"`
+	URI            string          `json:"uri"`
+	Followers      *Followers      `json:"followers"`
+	Genres         []*string       `json:"genres"`
+	Images         []*SpotifyImage `json:"images"`
+	Popularity     *int            `json:"popularity"`
+	IsItFromSearch bool            `json:"-"`
 }
 
 func (artist Artist) FilterValue() string {

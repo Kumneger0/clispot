@@ -41,19 +41,23 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 	var tracks []list.Item
 	for _, value := range searchResponse.Tracks.Items {
 		track := types.PlaylistTrackObject{
-			AddedAt: "",
-			AddedBy: nil,
-			IsLocal: false,
-			Track:   value,
+			AddedAt:        "",
+			AddedBy:        nil,
+			IsLocal:        false,
+			Track:          value,
+			IsItFromQueue:  false,
+			IsItFromSearch: true,
 		}
 		tracks = append(tracks, track)
 	}
 	var artist []list.Item
 	for _, value := range searchResponse.Artists.Items {
+		value.IsItFromSearch = true
 		artist = append(artist, value)
 	}
 	var playlist []list.Item
 	for _, value := range searchResponse.Playlists.Items {
+		value.IsItFromSearch = true
 		playlist = append(playlist, value)
 	}
 
@@ -436,6 +440,15 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		return m, m.MusicQueueList.SetItems([]list.Item{itemToAdd})
 	}
 
+	item, ok := itemToAdd.(types.PlaylistTrackObject)
+	if !ok {
+		slog.Error("failed to cast itemToAdd to PlaylistTrackObject")
+		return m, nil
+	}
+
+	item.IsItFromQueue = true
+	itemToAdd = item
+
 	var currentlyPlayingTrackIndex int
 	for index, item := range m.MusicQueueList.Items() {
 		playlistTrackObject, ok := item.(types.PlaylistTrackObject)
@@ -577,6 +590,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		cmd := m.getArtistTracks(userToken.AccessToken, selectedItem.ID)
 		m.MainViewMode = NormalMode
 		m.FocusedOn = MainView
+		updateDelegate(&m)
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultPlaylist {
@@ -590,6 +604,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		cmd := m.getPlaylistItems(userToken.AccessToken, selectedItem.ID)
 		m.MainViewMode = NormalMode
 		m.FocusedOn = MainView
+		updateDelegate(&m)
 		return m, tea.Batch(cmd, loadingCmd)
 	}
 	if m.FocusedOn == SearchResultTrack {
@@ -818,10 +833,23 @@ func changeFocusMode(m *Model, shift bool) (Model, tea.Cmd) {
 		m.FocusedOn = next
 	}
 
+	updateDelegate(m)
+	return *m, nil
+}
+
+func updateDelegate(m *Model) {
+	if m == nil {
+		return
+	}
 	m.SelectedPlayListItems.SetDelegate(CustomDelegate{Model: m})
 	m.MusicQueueList.SetDelegate(CustomDelegate{Model: m})
 	m.Playlist.SetDelegate(CustomDelegate{Model: m})
-	return *m, nil
+
+	if m.SearchResult != nil {
+		m.SearchResult.Tracks.SetDelegate(CustomDelegate{Model: m})
+		m.SearchResult.Artists.SetDelegate(CustomDelegate{Model: m})
+		m.SearchResult.Playlists.SetDelegate(CustomDelegate{Model: m})
+	}
 }
 
 func updateFocusedComponent(m *Model, msg tea.Msg, cmdsFromParent *[]tea.Cmd) (Model, tea.Cmd) {

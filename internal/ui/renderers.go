@@ -38,21 +38,53 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	case types.PlaylistTrackObject:
 		title = item.FilterValue()
 		if d.Model != nil {
-			if d.Model.FocusedOn == QueueList && item.IsItFromQueue {
-				isSelected = m.Index() == index
-			} else if d.Model.FocusedOn == MainView && item.IsItFromQueue == false {
-				isSelected = m.Index() == index
+			switch d.Model.FocusedOn {
+			case QueueList:
+				if item.IsItFromQueue {
+					isSelected = m.Index() == index
+				}
+			case MainView:
+				if !item.IsItFromQueue && item.IsItFromSearch == false {
+					isSelected = m.Index() == index
+				}
+			case SearchResultTrack:
+				if item.IsItFromSearch {
+					isSelected = m.Index() == index
+				}
 			}
 		}
 	case types.Artist:
 		title = item.FilterValue()
 		if d.Model != nil {
-			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
+			switch d.Model.FocusedOn {
+			case SearchResultArtist:
+				if item.IsItFromSearch {
+					isSelected = m.Index() == index
+				}
+			case SideView:
+				if !item.IsItFromSearch {
+					isSelected = m.Index() == index
+				}
+			}
 		}
 	case types.Playlist, spotify.UserSavedTracksListItem:
 		title = item.FilterValue()
 		if d.Model != nil {
-			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
+			playlist, ok := item.(types.Playlist)
+			if !ok {
+				isSelected = d.Model.FocusedOn == SideView && m.Index() == index
+			} else {
+				switch d.Model.FocusedOn {
+				case SearchResultPlaylist:
+					if playlist.IsItFromSearch {
+						isSelected = m.Index() == index
+					}
+				case SideView:
+					if !playlist.IsItFromSearch {
+						isSelected = m.Index() == index
+					}
+				}
+			}
 		}
 	default:
 	}

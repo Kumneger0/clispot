@@ -1,19 +1,20 @@
 package types // nolint:revive
 
 type Playlist struct {
-	Collaborative bool           `json:"collaborative"`
-	Description   string         `json:"description"`
-	ExternalURLs  ExternalURLs   `json:"external_urls"`
-	Href          string         `json:"href"`
-	ID            string         `json:"id"`
-	Images        []Image        `json:"images"`
-	Name          string         `json:"name"`
-	Owner         PlaylistOwner  `json:"owner"`
-	Public        bool           `json:"public"`
-	SnapshotID    string         `json:"snapshot_id"`
-	Tracks        PlaylistTracks `json:"tracks"`
-	Type          string         `json:"type"`
-	URI           string         `json:"uri"`
+	Collaborative  bool           `json:"collaborative"`
+	Description    string         `json:"description"`
+	ExternalURLs   ExternalURLs   `json:"external_urls"`
+	Href           string         `json:"href"`
+	ID             string         `json:"id"`
+	Images         []Image        `json:"images"`
+	Name           string         `json:"name"`
+	Owner          PlaylistOwner  `json:"owner"`
+	Public         bool           `json:"public"`
+	SnapshotID     string         `json:"snapshot_id"`
+	Tracks         PlaylistTracks `json:"tracks"`
+	Type           string         `json:"type"`
+	URI            string         `json:"uri"`
+	IsItFromSearch bool           `json:"-"`
 }
 
 func (spotifyPlaylist Playlist) FilterValue() string {
@@ -57,11 +58,12 @@ type PlaylistItemsResponse struct {
 }
 
 type PlaylistTrackObject struct {
-	AddedAt       string       `json:"added_at"`
-	AddedBy       *SpotifyUser `json:"added_by"`
-	IsLocal       bool         `json:"is_local"`
-	Track         Track        `json:"track"`
-	IsItFromQueue bool         `json:"isItFromQueue"`
+	AddedAt        string       `json:"added_at"`
+	AddedBy        *SpotifyUser `json:"added_by"`
+	IsLocal        bool         `json:"is_local"`
+	Track          Track        `json:"track"`
+	IsItFromQueue  bool         `json:"isItFromQueue"`
+	IsItFromSearch bool         `json:"-"`
 }
 
 func (playlist PlaylistTrackObject) FilterValue() string {

@@ -93,7 +93,10 @@ func (a apiURL) GetCheckUserSavedTrackURL() string {
 }
 
 func (a apiURL) GetUserSavedTrackURL() string {
-	return userSavedTrackURL
+	params := url.Values{}
+	params.Add("limit", "30")
+	params.Add("offset", "0")
+	return userSavedTrackURL + "?" + params.Encode()
 }
 
 func (a apiURL) GetPlaylistBaseURL() string {
@@ -134,8 +137,11 @@ func (a apiURL) GetArtistsTopTrackURL(id string) string {
 	return "https://api.spotify.com/v1/artists/" + id + "/top-tracks"
 }
 func (a apiURL) GetPlaylistItems(playlistID string) string {
+	params := url.Values{}
+	params.Add("limit", "30")
+	params.Add("offset", "0")
 	base := "https://api.spotify.com/v1/playlists/"
-	return base + playlistID + "/tracks"
+	return base + playlistID + "/tracks?" + params.Encode()
 }
 
 type Decoder struct {
@@ -289,11 +295,15 @@ func (a *APIClientImpl) SaveRemoveTrackForCurrentUser(accessToken string, trackI
 	return nil
 }
 
-func (a *APIClientImpl) GetUserSavedTracks(accessToken string) (*types.UserSavedTracks, error) {
+func (a *APIClientImpl) GetUserSavedTracks(accessToken string, next *string) (*types.UserSavedTracks, error) {
 	authorizationHeader := "Bearer " + accessToken
-	params := url.Values{}
-	params.Add("limit", "30")
-	resp, err := makeRequest(a.httpClient, "GET", a.apiURL.GetUserSavedTrackURL()+"?"+params.Encode(), authorizationHeader, nil)
+	var resp *http.Response
+	var err error
+	if next != nil && *next != "" {
+		resp, err = makeRequest(a.httpClient, "GET", *next, authorizationHeader, nil)
+	} else {
+		resp, err = makeRequest(a.httpClient, "GET", a.apiURL.GetUserSavedTrackURL(), authorizationHeader, nil)
+	}
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err
@@ -399,10 +409,16 @@ func (a *APIClientImpl) GetUserPlaylists(accessToken string) (*types.UserPlaylis
 	return playlists, nil
 }
 
-func (a *APIClientImpl) GetPlaylistItems(accessToken string, playlistID string) (*types.PlaylistItemsResponse, error) {
+func (a *APIClientImpl) GetPlaylistItems(accessToken string, playlistID string, next *string) (*types.PlaylistItemsResponse, error) {
 	authorizationHeader := "Bearer " + accessToken
 	playlistItemsURL := a.apiURL.GetPlaylistItems(playlistID)
-	resp, err := makeRequest(a.httpClient, "GET", playlistItemsURL, authorizationHeader, nil)
+	var resp *http.Response
+	var err error
+	if next != nil && *next != "" {
+		resp, err = makeRequest(a.httpClient, "GET", *next, authorizationHeader, nil)
+	} else {
+		resp, err = makeRequest(a.httpClient, "GET", playlistItemsURL, authorizationHeader, nil)
+	}
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, err

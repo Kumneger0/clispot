@@ -331,7 +331,10 @@ func runRoot(cmd *cobra.Command) error {
 
 	model.Playlist = playlists
 	model.SelectedPlayListItems = playlistItems
-	model.MusicQueueList = musicQueueList
+	model.MusicQueueList = &ui.MusicQueueList{
+		Model:          musicQueueList,
+		PaginationInfo: nil,
+	}
 	_, err = exec.LookPath("clispot-lyrics")
 	if err != nil {
 		model.IsLyricsServerInstalled = false

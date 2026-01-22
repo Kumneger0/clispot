@@ -57,6 +57,11 @@ type SelectedTrack struct {
 	Track   *types.PlaylistTrackObject
 }
 
+type MusicQueueList struct {
+	list.Model
+	PaginationInfo *types.PaginationInfo
+}
+
 type Model struct {
 	Playlist              list.Model
 	Alert                 bubbleup.AlertModel
@@ -76,7 +81,7 @@ type Model struct {
 	MainViewWidth       int
 	PlayerSectionHeight int
 	Search              textinput.Model
-	MusicQueueList      list.Model
+	MusicQueueList      *MusicQueueList
 	SpotifyClient       *spotify.APIClientImpl
 	DBusConn            *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
@@ -87,6 +92,8 @@ type Model struct {
 	IsSearchLoading, IsLyricsServerInstalled bool
 	SearchResult                             *SpotifySearchResult
 	GetUserToken                             func() *types.UserTokenInfo
+	PaginationInfo                           *types.PaginationInfo
+	IsOnPagination                           bool
 }
 
 type Instance struct {
@@ -117,10 +124,12 @@ func (m Model) Init() tea.Cmd {
 func (m Model) View() string {
 	m.Playlist.Title = "Playlist"
 	m.SelectedPlayListItems.Title = "Tracks"
-	m.MusicQueueList.Title = "Queue"
+	m.MusicQueueList.Model.Title = "Queue"
 	removeListDefaults(&m.Playlist)
 	removeListDefaults(&m.SelectedPlayListItems)
-	removeListDefaults(&m.MusicQueueList)
+	if m.MusicQueueList != nil {
+		removeListDefaults(&m.MusicQueueList.Model)
+	}
 
 	dimensions := calculateLayoutDimensions(&m)
 

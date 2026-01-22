@@ -31,7 +31,7 @@ func (m mockAPIURL) GetArtistsTopTrackURL(id string) string {
 	return m.baseURL + "/artists/" + id + "/top-tracks"
 }
 func (m mockAPIURL) GetSearchURL(q string) string      { return m.baseURL + "/search?q=" + q }
-func (m mockAPIURL) GetUserSavedTrackURL() string      { return m.baseURL + "/me/tracks" }
+func (m mockAPIURL) GetUserSavedTrackURL() string      { return m.baseURL + "/me/tracks?limit=30&offset=0" }
 func (m mockAPIURL) GetCheckUserSavedTrackURL() string { return m.baseURL + "/me/tracks/contains?ids=" }
 func (m mockAPIURL) GetUserSavedAlbumsBaseURL() string { return m.baseURL + "/me/albums" }
 func (m mockAPIURL) GetAlbumTracksURL(albumID string) string {
@@ -111,6 +111,7 @@ func TestGetUserSavedTracks(t *testing.T) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Equal(t, "/me/tracks", r.URL.Path)
 		assert.Equal(t, "30", r.URL.Query().Get("limit"))
+		assert.Equal(t, "0", r.URL.Query().Get("offset"))
 
 		w.WriteHeader(http.StatusOK)
 		err := json.NewEncoder(w).Encode(expectedTracks)

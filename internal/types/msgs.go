@@ -1,12 +1,24 @@
 package types // nolint:revive
 
-// type PlayMusicMsg struct {
-// 	MusicPath string
-// }
+type NextPageURLType string
+
+const (
+	NextPageURLTypePlaylistTracks NextPageURLType = "playlistTracks"
+	NextPageURLTypeUserSavedItems NextPageURLType = "userSavedItems"
+)
+
+type PaginationInfo struct {
+	Next            string
+	NextPageURLType NextPageURLType
+	NextItemID      string
+}
 
 type UpdatePlaylistMsg struct {
-	Playlist []*PlaylistTrackObject
-	Err      error
+	Playlist          []*PlaylistTrackObject
+	Err               error
+	PaginationInfo    *PaginationInfo
+	ShouldAppendQueue bool
+	ShouldAppend      bool
 }
 
 type UpdatePlayedSeconds struct {

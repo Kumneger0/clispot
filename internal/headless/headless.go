@@ -281,7 +281,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == PlaylistType {
-			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, id)
+			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, id, nil)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
@@ -305,7 +305,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == LikedSongs {
-			savedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken)
+			savedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken, nil)
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)

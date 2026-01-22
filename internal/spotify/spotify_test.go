@@ -121,7 +121,7 @@ func TestGetUserSavedTracks(t *testing.T) {
 	mockURLs := mockAPIURL{baseURL: server.URL}
 	client := NewAPIClient(mockURLs, server.Client())
 
-	tracks, err := client.GetUserSavedTracks("test-token")
+	tracks, err := client.GetUserSavedTracks("test-token", nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Saved Track", tracks.Items[0].Track.Name)
@@ -311,7 +311,7 @@ func TestGetPlaylistItems(t *testing.T) {
 	defer server.Close()
 
 	client := NewAPIClient(mockAPIURL{baseURL: server.URL}, server.Client())
-	resp, err := client.GetPlaylistItems("test-token", "playlist123")
+	resp, err := client.GetPlaylistItems("test-token", "playlist123", nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Playlist Track", resp.Items[0].Track.Name)

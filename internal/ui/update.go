@@ -216,6 +216,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			var cmd tea.Cmd
 			if msg.ShouldAppendQueue {
+				if m.MusicQueueList != nil {
+					return m, nil
+				}
 				cmd = m.MusicQueueList.SetItems(playListItemSongs)
 			} else {
 				cmd = m.SelectedPlayListItems.SetItems(playListItemSongs)

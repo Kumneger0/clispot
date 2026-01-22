@@ -680,6 +680,9 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			}
 			items = append(items, playlistItem)
 		}
+		if m.MusicQueueList == nil {
+			return m, nil
+		}
 		m.MusicQueueList.Model.SetItems(items)
 		m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic, false)

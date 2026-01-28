@@ -153,7 +153,6 @@ func runRoot(cmd *cobra.Command) error {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
-
 	isCacheDisabled, err := cmd.Flags().GetBool("disable-cache")
 	if !cmd.Flags().Changed("disable-cache") {
 		isCacheDisabled = configFromFile.CacheDisabled

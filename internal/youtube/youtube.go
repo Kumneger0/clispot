@@ -3,11 +3,14 @@ package youtube
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -66,8 +69,9 @@ func SearchAndDownloadMusic(
 	spotifyID string,
 	shouldWait bool,
 	ytDlpErrWriter *io.PipeWriter,
+	durationSec int,
 ) (*Player, error) {
-	searchQuery := "ytsearch:" + trackName
+	searchQuery := "ytsearch5:" + trackName
 	if len(artistNames) > 0 {
 		searchQuery += " " + artistNames[0]
 	}
@@ -79,14 +83,37 @@ func SearchAndDownloadMusic(
 		return nil, err
 	}
 
+	junkWords := []string{"hour", "loop", "slowed", "reverb", "mix", "playlist", "album"}
+	JunkWordsToFilterOut := make([]string, 0)
+	for _, word := range junkWords {
+		if !strings.Contains(strings.ToLower(trackName), word) {
+			JunkWordsToFilterOut = append(JunkWordsToFilterOut, word)
+		}
+	}
+
+	var rejectTitleConditions []string
+
+	for _, word := range JunkWordsToFilterOut {
+		rejectTitleConditions = append(rejectTitleConditions, "--reject-title", fmt.Sprintf("(?i)%s", word))
+	}
+
+	var conditions []string
+	conditions = append(conditions, "!is_live")
+	conditions = append(conditions, fmt.Sprintf("duration >= %d", durationSec-60))
+	conditions = append(conditions, fmt.Sprintf("duration <= %d", durationSec+60))
+	conditions = append(conditions, `title ~= "(?i)`+strings.ReplaceAll(regexp.QuoteMeta(trackName), " ", ".*")+`"`)
+	matchFilter := strings.Join(conditions, " & ")
+
 	musicPath := filepath.Join(cacheDir, spotifyID+".m4a")
 
 	args := []string{
 		searchQuery,
 		"--no-playlist",
 		"-f", "bestaudio",
-		"-o", "-",
+		"--match-filter", strings.TrimSpace(matchFilter),
 	}
+
+	args = append(slices.Concat(args, rejectTitleConditions), "--max-downloads", "1", "-o", "-")
 
 	if appConfig.YtDlpArgs.CookiesFromBrowser != nil {
 		args = append(args, "--cookies-from-browser", *appConfig.YtDlpArgs.CookiesFromBrowser)

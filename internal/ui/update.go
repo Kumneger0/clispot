@@ -882,7 +882,8 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 			return m, alertCmd
 		}
 	}
-	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter)
+	durationSec := selectedMusic.Track.DurationMS / 1000
+	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter, durationSec)
 	if err != nil {
 		slog.Error(err.Error())
 		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())

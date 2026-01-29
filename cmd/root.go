@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"syscall"
 
@@ -20,10 +23,13 @@ import (
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
 	"github.com/kumneger0/clispot/internal/youtube"
+	"github.com/lrstanley/go-ytdlp"
 	"go.dalton.dog/bubbleup"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+
+	"github.com/charmbracelet/huh"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -36,6 +42,147 @@ import (
 var (
 	Program *tea.Program
 )
+
+var (
+	ytDlpInstallSupportedPlatforms = []string{
+		"darwin_amd64",
+		"darwin_arm64",
+		"linux_amd64",
+		"linux_arm64",
+		"linux_armv7l",
+		"windows_amd64",
+	}
+
+	ffmpegInstallSupportedPlatforms = []string{
+		"darwin_amd64",
+		"linux_amd64",
+		"linux_arm64",
+		"windows_amd64",
+		"windows_arm",
+	}
+)
+
+var confirmInstall = func() (bool, error) {
+	var confirm bool
+	err := huh.NewConfirm().
+		Title("Do you want us to install missing dependencies for clispot?").
+		Affirmative("Yes!").
+		Negative("No.").
+		Value(&confirm).Run()
+	return confirm, err
+}
+
+func isAutoInstallable(tool CoreDependency, deps []DebsCheckResult) bool {
+	for _, d := range deps {
+		if d.ToolName == tool {
+			return true
+		}
+	}
+	return false
+}
+
+var installAllDeps = func(ctx context.Context) ([]*ytdlp.ResolvedInstall, error) {
+	return ytdlp.InstallAll(ctx)
+}
+
+var installYtDlp = func(ctx context.Context) (*ytdlp.ResolvedInstall, error) {
+	return ytdlp.Install(ctx, nil)
+}
+
+var installFFmpeg = func(ctx context.Context) (*ytdlp.ResolvedInstall, error) {
+	return ytdlp.InstallFFmpeg(ctx, nil)
+}
+
+func autoInstallDeps(debsCheekResult []DebsCheckResult, platform string) error {
+	for _, dep := range debsCheekResult {
+		fmt.Printf("Missing dependency: %s\n", dep.ToolName)
+	}
+
+	var automaticInstallableDeps []DebsCheckResult
+	for _, dep := range debsCheekResult {
+		switch dep.ToolName {
+		case YtDlp:
+			if slices.Contains(ytDlpInstallSupportedPlatforms, platform) {
+				automaticInstallableDeps = append(automaticInstallableDeps, dep)
+			}
+		case Ffmpeg:
+			if slices.Contains(ffmpegInstallSupportedPlatforms, platform) {
+				automaticInstallableDeps = append(automaticInstallableDeps, dep)
+			}
+		}
+	}
+
+	if len(automaticInstallableDeps) == 0 {
+		slog.Info("No missing dependencies can be installed automatically. Exiting.")
+		fmt.Println("Please install the missing dependencies and try again.")
+		return errors.New("no missing dependencies can be installed automatically")
+	}
+
+	shouldInstallAll := len(automaticInstallableDeps) == len(debsCheekResult)
+
+	ytMissing := slices.ContainsFunc(debsCheekResult, func(d DebsCheckResult) bool {
+		return d.ToolName == YtDlp && !d.Installed
+	})
+	ytAuto := isAutoInstallable(YtDlp, automaticInstallableDeps)
+
+	if ytMissing && !ytAuto {
+		fmt.Println("Please install yt-dlp manually from https://github.com/yt-dlp/yt-dlp")
+	}
+
+	ffMissing := slices.ContainsFunc(debsCheekResult, func(d DebsCheckResult) bool {
+		return d.ToolName == Ffmpeg && !d.Installed
+	})
+	ffAuto := isAutoInstallable(Ffmpeg, automaticInstallableDeps)
+
+	if ffMissing && !ffAuto {
+		fmt.Println("Please install ffmpeg manually from https://ffmpeg.org/download.html")
+	}
+
+	confirm, err := confirmInstall()
+	if err != nil {
+		slog.Error(err.Error())
+		fmt.Println("Failed to get user confirmation. Exiting.")
+		return err
+	}
+	if confirm {
+		var resolvedAllInstall []*ytdlp.ResolvedInstall
+		var err error
+		if shouldInstallAll {
+			resolvedAllInstall, err = installAllDeps(context.TODO())
+		} else {
+			for _, dep := range automaticInstallableDeps {
+				switch dep.ToolName {
+				case YtDlp:
+					r, err := installYtDlp(context.TODO())
+					if err != nil {
+						return err
+					}
+					resolvedAllInstall = append(resolvedAllInstall, r)
+
+				case Ffmpeg:
+					r, err := installFFmpeg(context.TODO())
+					if err != nil {
+						return err
+					}
+					resolvedAllInstall = append(resolvedAllInstall, r)
+				}
+			}
+		}
+		if err != nil {
+			slog.Error("failed to install dependencies", slog.String("error", err.Error()))
+			fmt.Println("failed to install dependencies please check the logs for more info")
+			return err
+		}
+		for _, r := range resolvedAllInstall {
+			fmt.Printf("Installed dependency: %s version %s\n", r.Executable, r.Version)
+		}
+	} else {
+		slog.Info("Exiting the application as dependencies are not installed")
+		fmt.Println("Please install the missing dependencies and try again.")
+		return errors.New("user declined to install missing dependencies")
+	}
+	return nil
+}
 
 func newRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
@@ -68,7 +215,6 @@ func newRootCmd(version string) *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
 				}
 			}
-
 			return runRoot(cmd)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -226,13 +372,24 @@ func runRoot(cmd *cobra.Command) error {
 	defer logger.Close()
 
 	slog.Info("starting the application")
+	debsCheekResults := doAllDepsInstalled()
 
-	err = doAllDepsInstalled()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-		return nil
+	var missingDeps []DebsCheckResult
+	for _, dep := range debsCheekResults {
+		if dep.Installed == false {
+			missingDeps = append(missingDeps, dep)
+		}
 	}
+
+	if len(missingDeps) > 0 {
+		err := autoInstallDeps(missingDeps, fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH))
+		if err != nil {
+			slog.Error("failed to install missing dependencies", slog.String("error", err.Error()))
+			fmt.Println("failed to install missing dependencies please check the logs for more info")
+			os.Exit(1)
+		}
+	}
+
 	token, err := spotify.ReadUserCredentials()
 
 	if err != nil {
@@ -389,17 +546,40 @@ func validateToken(token *types.UserTokenInfo) (*types.UserTokenInfo, error) {
 	return token, nil
 }
 
-func doAllDepsInstalled() error {
-	toolNames := []string{"yt-dlp", "ffmpeg"}
-	var error error
+type CoreDependency string
+
+const (
+	YtDlp  CoreDependency = "yt-dlp"
+	Ffmpeg CoreDependency = "ffmpeg"
+)
+
+type DebsCheckResult struct {
+	ToolName  CoreDependency
+	Installed bool
+	// if the tool is installed, Path will contain the path to the executable
+	Path string
+}
+
+func doAllDepsInstalled() []DebsCheckResult {
+	toolNames := []CoreDependency{YtDlp, Ffmpeg}
+	results := []DebsCheckResult{}
 	for _, toolName := range toolNames {
-		_, err := exec.LookPath(toolName)
+		_, err := exec.LookPath(string(toolName))
 		if err != nil {
-			error = fmt.Errorf("failed to find %v in the path have u installed it", toolName)
-			break
+			results = append(results, DebsCheckResult{
+				ToolName:  toolName,
+				Installed: false,
+				Path:      "",
+			})
+			continue
 		}
+		results = append(results, DebsCheckResult{
+			ToolName:  toolName,
+			Installed: true,
+			Path:      string(toolName),
+		})
 	}
-	return error
+	return results
 }
 
 var (

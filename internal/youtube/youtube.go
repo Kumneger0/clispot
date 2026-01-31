@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+
 	"io"
 	"log/slog"
 	"os"
@@ -45,6 +46,12 @@ func getOtoContext() (*oto.Context, chan struct{}, error) {
 	return otoContext, readyChan, ctxErr
 }
 
+type CoreDepsPath struct {
+	FFmpeg  string
+	YtDlp   string
+	FFprobe string
+}
+
 type byteCounterReader struct {
 	r     io.Reader
 	total int
@@ -70,6 +77,7 @@ func SearchAndDownloadMusic(
 	shouldWait bool,
 	ytDlpErrWriter *io.PipeWriter,
 	durationSec int,
+	coreDepsPath CoreDepsPath,
 ) (*Player, error) {
 	searchQuery := "ytsearch5:" + trackName
 	if len(artistNames) > 0 {
@@ -136,7 +144,7 @@ func SearchAndDownloadMusic(
 	}
 
 	if _, err := os.Stat(musicPath); err == nil {
-		player, isPlayable, err := playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr)
+		player, isPlayable, err := playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr, coreDepsPath)
 		if err != nil {
 			slog.Error(err.Error())
 		}
@@ -146,7 +154,7 @@ func SearchAndDownloadMusic(
 		slog.Error("cached audio is not playable trying to play from youtube")
 	}
 
-	yt, _ := command.ExecCommand("yt-dlp", args...)
+	yt, _ := command.ExecCommand(coreDepsPath.YtDlp, args...)
 
 	yt.Stderr = ytdlpWriter
 
@@ -173,7 +181,7 @@ func SearchAndDownloadMusic(
 		reader = ytOut
 	}
 
-	ff, _ := command.ExecCommand("ffmpeg",
+	ff, _ := command.ExecCommand(coreDepsPath.FFmpeg,
 		"-i", "pipe:0",
 		"-f", "s16le",
 		"-acodec", "pcm_s16le",
@@ -258,7 +266,7 @@ func SearchAndDownloadMusic(
 	}, nil
 }
 
-func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os.File) (*Player, bool, error) {
+func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os.File, coreCoreDepsPath CoreDepsPath) (*Player, bool, error) {
 	_, err := exec.LookPath("ffprobe")
 	if err != nil {
 		notificationTitle := "ffprobe is missing"
@@ -268,7 +276,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 	}
 
 	cmd, _ := command.ExecCommand(
-		"ffprobe",
+		coreCoreDepsPath.FFprobe,
 		"-v", "error",
 		"-select_streams", "a:0",
 		"-show_entries", "stream=codec_name",
@@ -292,7 +300,7 @@ func playExistingMusic(musicPath string, shouldWait bool, ffStderr, ytStderr *os
 		return nil, false, err
 	}
 
-	ff, _ := command.ExecCommand("ffmpeg",
+	ff, _ := command.ExecCommand(coreCoreDepsPath.FFmpeg,
 		"-i", "pipe:0",
 		"-f", "s16le",
 		"-acodec", "pcm_s16le",

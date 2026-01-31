@@ -94,6 +94,7 @@ type Model struct {
 	GetUserToken                             func() *types.UserTokenInfo
 	PaginationInfo                           *types.PaginationInfo
 	IsOnPagination                           bool
+	CoreDepsPath                             *youtube.CoreDepsPath
 }
 
 type Instance struct {

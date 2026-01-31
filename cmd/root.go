@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -68,7 +69,6 @@ func newRootCmd(version string) *cobra.Command {
 					fmt.Fprintf(os.Stderr, "Warning: could not write PID to lock file: %v\n", err)
 				}
 			}
-
 			return runRoot(cmd)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -91,6 +91,7 @@ func newRootCmd(version string) *cobra.Command {
 	cmd.AddCommand(newVersionCmd(version))
 	cmd.AddCommand(clispotLog())
 	cmd.AddCommand(ManCmd(cmd))
+	cmd.AddCommand(installDeps())
 	return cmd
 }
 
@@ -226,13 +227,36 @@ func runRoot(cmd *cobra.Command) error {
 	defer logger.Close()
 
 	slog.Info("starting the application")
+	debsCheekResults := doAllDepsInstalled()
 
-	err = doAllDepsInstalled()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-		return nil
+	var missingDeps []DebsCheckResult
+	for _, dep := range debsCheekResults {
+		if dep.Installed == false {
+			missingDeps = append(missingDeps, dep)
+		}
 	}
+
+	coreDepsPath := &youtube.CoreDepsPath{}
+
+	if len(missingDeps) > 0 {
+		for _, dep := range missingDeps {
+			fmt.Printf("%s, is missing use clispot install to install the missing dependencies ", dep.ToolName)
+		}
+		os.Exit(1)
+	}
+
+	for _, dep := range debsCheekResults {
+		if dep.ToolName == FFmpeg {
+			coreDepsPath.FFmpeg = dep.Path
+		}
+		if dep.ToolName == YtDlp {
+			coreDepsPath.YtDlp = dep.Path
+		}
+		if dep.ToolName == FFprobe {
+			coreDepsPath.FFprobe = dep.Path
+		}
+	}
+
 	token, err := spotify.ReadUserCredentials()
 
 	if err != nil {
@@ -280,6 +304,7 @@ func runRoot(cmd *cobra.Command) error {
 		DBusConn:      ins,
 		MainViewMode:  ui.NormalMode,
 		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL(), nil),
+		CoreDepsPath:  coreDepsPath,
 	}
 
 	reader, writer := io.Pipe()
@@ -389,17 +414,69 @@ func validateToken(token *types.UserTokenInfo) (*types.UserTokenInfo, error) {
 	return token, nil
 }
 
-func doAllDepsInstalled() error {
-	toolNames := []string{"yt-dlp", "ffmpeg"}
-	var error error
-	for _, toolName := range toolNames {
-		_, err := exec.LookPath(toolName)
-		if err != nil {
-			error = fmt.Errorf("failed to find %v in the path have u installed it", toolName)
-			break
-		}
+type CoreDependency string
+
+const (
+	YtDlp   CoreDependency = "yt-dlp"
+	FFmpeg  CoreDependency = "ffmpeg"
+	FFprobe CoreDependency = "ffprobe"
+)
+
+type DebsCheckResult struct {
+	ToolName  CoreDependency
+	Installed bool
+	// if the tool is installed, Path will contain the path to the executable
+	Path string
+}
+
+func doAllDepsInstalled() []DebsCheckResult {
+	debsInCacheDirCheckPath := map[CoreDependency]string{
+		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg"),
+		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffprobe"),
+		YtDlp:   filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp"),
 	}
-	return error
+
+	toolNames := []CoreDependency{YtDlp, FFmpeg, FFprobe}
+	results := []DebsCheckResult{}
+	for _, toolName := range toolNames {
+		_, err := exec.LookPath(string(toolName))
+		if err != nil {
+			isInstalledInCacheDir, err := checkDepInCacheDir(debsInCacheDirCheckPath[toolName])
+			if err != nil {
+				continue
+			}
+			if isInstalledInCacheDir {
+				results = append(results, DebsCheckResult{
+					ToolName:  toolName,
+					Installed: true,
+					Path:      debsInCacheDirCheckPath[toolName],
+				})
+			}
+			continue
+		}
+		results = append(results, DebsCheckResult{
+			ToolName:  toolName,
+			Installed: true,
+			Path:      string(toolName),
+		})
+	}
+	return results
+}
+
+func checkDepInCacheDir(path string) (bool, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		slog.Error(err.Error())
+		return false, err
+	}
+
+	if fileInfo.IsDir() {
+		err := errors.New("the provided path is not a valid file")
+		slog.Error(err.Error())
+		return false, err
+	}
+
+	return true, nil
 }
 
 var (

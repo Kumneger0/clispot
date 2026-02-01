@@ -80,7 +80,7 @@ func SearchAndDownloadMusic(
 	coreDepsPath *CoreDepsPath,
 ) (*Player, error) {
 	if coreDepsPath == nil {
-		return nil, errors.New("Filed to fund necessary dependencies")
+		return nil, errors.New("failed to find necessary dependencies")
 	}
 	searchQuery := "ytsearch5:" + trackName
 	if len(artistNames) > 0 {

@@ -2,6 +2,7 @@ package install
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -21,21 +22,8 @@ var (
 	checksumURL string = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256"
 
 	ffmpegBinConfigs = map[string]ffmpegBinConfig{
-		"darwin_amd64": {
-			ffmpegURL:  "https://evermeet.cx/ffmpeg/getrelease/ffmpeg",
-			ffprobeURL: "https://evermeet.cx/ffmpeg/getrelease/ffprobe",
-			ffmpeg:     "ffmpeg",
-			ffprobe:    "ffprobe",
-			isArchive:  false,
-		},
 		"linux_amd64": {
 			ffmpegURL: "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
-			ffmpeg:    "ffmpeg",
-			ffprobe:   "ffprobe",
-			isArchive: true,
-		},
-		"linux_arm64": {
-			ffmpegURL: "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz",
 			ffmpeg:    "ffmpeg",
 			ffprobe:   "ffprobe",
 			isArchive: true,
@@ -56,6 +44,10 @@ var (
 )
 
 func FFmpeg(ctx context.Context) (*ResolvedInstall, error) {
+	if runtime.GOOS == "darwin" {
+		fmt.Println("install command is not supported on this platform please install manually from https://www.ffmpeg.org/download.html")
+		return nil, nil
+	}
 	plat, err := detectPlatform()
 
 	if err != nil {

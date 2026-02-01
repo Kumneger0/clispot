@@ -31,8 +31,8 @@ func installDeps() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Println("install ffmpeg")
 
+				fmt.Println("installing ffmpeg")
 				_, err = install.FFmpeg(context.TODO())
 				if err != nil {
 					return err

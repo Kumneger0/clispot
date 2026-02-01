@@ -7,8 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 
 	pb "github.com/schollz/progressbar/v3"
@@ -51,7 +54,7 @@ func fetchLatestRelease(githubOwner, githubRepo string) (*githubRelease, error) 
 	return &rel, nil
 }
 
-func download(url string, outputPath string) error {
+func download(url string, outputPath string, shouldShowProgress bool) error {
 	resp, err := http.Get(url)
 
 	if err != nil {
@@ -69,12 +72,15 @@ func download(url string, outputPath string) error {
 	}
 	defer out.Close()
 
-	bar := pb.DefaultBytes(
-		resp.ContentLength,
-		"downloading",
-	)
-
-	_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
+	if shouldShowProgress {
+		bar := pb.DefaultBytes(
+			resp.ContentLength,
+			"downloading",
+		)
+		_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
+	} else {
+		_, err = io.Copy(out, resp.Body)
+	}
 
 	if err != nil {
 		return err
@@ -98,6 +104,65 @@ func detectPlatform() (string, error) {
 	}
 	return key, nil
 }
+
+func install(url, checksumURL, pathToFile, checksumDir, githubReleaseFileName string) (*ResolvedInstall, error) {
+	_, err := os.Create(pathToFile)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = download(url, pathToFile, true)
+
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = os.Create(checksumDir)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = download(checksumURL, checksumDir, false)
+
+	if err != nil {
+		panic(err)
+	}
+
+	data, err := os.ReadFile(checksumDir)
+
+	if err != nil {
+		panic(err)
+	}
+
+	expectedHash, err := getExpectedHash(string(data), githubReleaseFileName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	calculatedHash, err := calculateFileCheckSum(pathToFile)
+
+	if err != nil {
+		panic(err)
+	}
+
+	isValid := validateChecksum(calculatedHash, expectedHash)
+
+	if !isValid {
+		slog.Error("check sum validation gone wrong")
+		fmt.Fprintln(os.Stderr, "Oops! Something went wrong while checking the downloaded ffmpeg binary. Please try downloading it manually or let us know if you need help.")
+		os.Exit(1)
+	}
+
+	return &ResolvedInstall{
+		Executable: pathToFile,
+		FromCache:  false,
+		Downloaded: true,
+	}, nil
+}
+
 func calculateFileCheckSum(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -116,4 +181,35 @@ func calculateFileCheckSum(filePath string) ([]byte, error) {
 
 func validateChecksum(calculatedChecksum, expectedChecksum []byte) bool {
 	return subtle.ConstantTimeCompare(calculatedChecksum, expectedChecksum) == 1
+}
+
+func extractBinaries(targetDir, archive string) error {
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(
+		"tar",
+		"-xJf", archive,
+		"-C", targetDir,
+		"--strip-components=2",
+	)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("extraction failed: %w", err)
+	}
+
+	binaries := []string{"ffmpeg", "ffprobe"}
+	for _, bin := range binaries {
+		path := filepath.Join(targetDir, bin)
+		if err := os.Chmod(path, 0755); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("✅ ffmpeg and ffprobe extracted to ./ffmpeg/")
+	return nil
 }

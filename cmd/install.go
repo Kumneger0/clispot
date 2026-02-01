@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kumneger0/clispot/internal/install"
 	"github.com/spf13/cobra"
@@ -22,23 +23,33 @@ func installDeps() *cobra.Command {
 				return err
 			}
 
-			isBoth := isFFmpegOnly && isYtDlpOnly
+			all := (isFFmpegOnly && isYtDlpOnly) || (!isFFmpegOnly && !isYtDlpOnly)
 
-			if isBoth {
-				//TODO: implement a function to download both of them
+			if all {
+				fmt.Println("installing yt-dlp")
+				_, err := install.YtDlp(context.TODO())
+				if err != nil {
+					return err
+				}
+				fmt.Println("install ffmpeg")
+
+				_, err = install.FFmpeg(context.TODO())
+				if err != nil {
+					return err
+				}
 			}
-
 			if isYtDlpOnly {
 				_, err := install.YtDlp(context.TODO())
 				if err != nil {
 					return err
 				}
 			}
-
 			if isFFmpegOnly {
-				//TODO: implement a function to download yt-dlp
+				_, err := install.FFmpeg(context.TODO())
+				if err != nil {
+					return err
+				}
 			}
-
 			return nil
 		},
 	}

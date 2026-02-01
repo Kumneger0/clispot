@@ -2,6 +2,7 @@ package install
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -177,6 +178,9 @@ func validateChecksum(calculatedChecksum, expectedChecksum []byte) bool {
 }
 
 func extractBinaries(targetDir, archivePath string) error {
+	if strings.HasSuffix(archivePath, ".zip") {
+		return extractZipBinaries(targetDir, archivePath)
+	}
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}
@@ -234,5 +238,51 @@ func extractBinaries(targetDir, archivePath string) error {
 	}
 
 	fmt.Println("✅ ffmpeg and ffprobe extracted successfully")
+	return nil
+}
+
+func extractZipBinaries(targetDir, zipPath string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return err
+	}
+
+	for _, f := range r.File {
+		if !strings.HasSuffix(f.Name, "ffmpeg") && !strings.HasSuffix(f.Name, "ffprobe") {
+			continue
+		}
+
+		outPath := filepath.Join(targetDir, filepath.Base(f.Name))
+
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+
+		outFile, err := os.Create(outPath)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+
+		_, err = io.Copy(outFile, rc)
+		outFile.Close()
+		rc.Close()
+		if err != nil {
+			return err
+		}
+
+		if runtime.GOOS != "windows" {
+			_ = os.Chmod(outPath, 0755)
+		}
+
+		fmt.Println("Extracted:", outPath)
+	}
+
 	return nil
 }

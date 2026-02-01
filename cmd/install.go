@@ -37,6 +37,7 @@ func installDeps() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				return nil
 			}
 			if isYtDlpOnly {
 				_, err := install.YtDlp(context.TODO())

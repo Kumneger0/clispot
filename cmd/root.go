@@ -429,10 +429,18 @@ type DebsCheckResult struct {
 }
 
 func doAllDepsInstalled() []DebsCheckResult {
+	ffmpegName := "ffmpeg"
+	ffprobeName := "ffprobe"
+	ytdlpName := "yt-dlp"
+	if runtime.GOOS == "windows" {
+		ffmpegName = "ffmpeg.exe"
+		ffprobeName = "ffprobe.exe"
+		ytdlpName = "yt-dlp.exe"
+	}
 	debsInCacheDirCheckPath := map[CoreDependency]string{
-		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", "ffmpeg"),
-		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", "ffprobe"),
-		YtDlp:   filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp"),
+		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffmpegName),
+		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffprobeName),
+		YtDlp:   filepath.Join(config.GetCacheDir(runtime.GOOS), ytdlpName),
 	}
 
 	toolNames := []CoreDependency{YtDlp, FFmpeg, FFprobe}

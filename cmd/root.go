@@ -438,10 +438,15 @@ func doAllDepsInstalled() []DebsCheckResult {
 	toolNames := []CoreDependency{YtDlp, FFmpeg, FFprobe}
 	results := []DebsCheckResult{}
 	for _, toolName := range toolNames {
-		_, err := exec.LookPath(string(toolName))
+		pathFound, err := exec.LookPath(string(toolName))
 		if err != nil {
 			isInstalledInCacheDir, err := checkDepInCacheDir(debsInCacheDirCheckPath[toolName])
 			if err != nil {
+				results = append(results, DebsCheckResult{
+					ToolName:  toolName,
+					Installed: false,
+					Path:      "",
+				})
 				continue
 			}
 			if isInstalledInCacheDir {
@@ -456,7 +461,7 @@ func doAllDepsInstalled() []DebsCheckResult {
 		results = append(results, DebsCheckResult{
 			ToolName:  toolName,
 			Installed: true,
-			Path:      string(toolName),
+			Path:      pathFound,
 		})
 	}
 	return results

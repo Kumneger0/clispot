@@ -21,7 +21,7 @@ type ffmpegBinConfig struct {
 var (
 	checksumURL string = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/checksums.sha256"
 
-	ffmpegBinConfigs = map[string]ffmpegBinConfig{
+	ffmpegBinConfigs = map[string]*ffmpegBinConfig{
 		"linux_amd64": {
 			ffmpegURL: "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
 			ffmpeg:    "ffmpeg",
@@ -54,7 +54,13 @@ func FFmpeg(ctx context.Context) (*ResolvedInstall, error) {
 		panic(err)
 	}
 
-	splitted := strings.Split(ffmpegBinConfigs[plat].ffmpegURL, "/")
+	ffmpegBinConfig := ffmpegBinConfigs[plat]
+
+	if ffmpegBinConfig == nil {
+		panic("Failed to found the binary url for your OS")
+	}
+
+	splitted := strings.Split(ffmpegBinConfig.ffmpegURL, "/")
 
 	filename := splitted[len(splitted)-1]
 
@@ -62,7 +68,7 @@ func FFmpeg(ctx context.Context) (*ResolvedInstall, error) {
 
 	checksumDir := filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg-checksum")
 
-	result, err := install(ffmpegBinConfigs[plat].ffmpegURL, checksumURL, ffmpegDirectory, checksumDir, filename)
+	result, err := install(ffmpegBinConfig.ffmpegURL, checksumURL, ffmpegDirectory, checksumDir, filename)
 
 	if err != nil {
 		panic(err)

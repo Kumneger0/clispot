@@ -77,8 +77,11 @@ func SearchAndDownloadMusic(
 	shouldWait bool,
 	ytDlpErrWriter *io.PipeWriter,
 	durationSec int,
-	coreDepsPath CoreDepsPath,
+	coreDepsPath *CoreDepsPath,
 ) (*Player, error) {
+	if coreDepsPath == nil {
+		return nil, errors.New("Filed to fund necessary dependencies")
+	}
 	searchQuery := "ytsearch5:" + trackName
 	if len(artistNames) > 0 {
 		searchQuery += " " + artistNames[0]
@@ -144,7 +147,7 @@ func SearchAndDownloadMusic(
 	}
 
 	if _, err := os.Stat(musicPath); err == nil {
-		player, isPlayable, err := playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr, coreDepsPath)
+		player, isPlayable, err := playExistingMusic(musicPath, shouldWait, ffStderr, ytStderr, *coreDepsPath)
 		if err != nil {
 			slog.Error(err.Error())
 		}

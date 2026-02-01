@@ -1,6 +1,7 @@
 package install
 
 import (
+	"archive/tar"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -10,11 +11,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	pb "github.com/schollz/progressbar/v3"
+	"github.com/ulikunitz/xz"
 )
 
 type releaseAsset struct {
@@ -93,10 +95,6 @@ func download(url string, outputPath string, shouldShowProgress bool) error {
 func detectPlatform() (string, error) {
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
-
-	if goos == "linux" && goarch == "arm" {
-		goarch = "arm64"
-	}
 
 	key := fmt.Sprintf("%s_%s", goos, goarch)
 	if _, ok := assetMap[key]; !ok {
@@ -178,33 +176,63 @@ func validateChecksum(calculatedChecksum, expectedChecksum []byte) bool {
 	return subtle.ConstantTimeCompare(calculatedChecksum, expectedChecksum) == 1
 }
 
-func extractBinaries(targetDir, archive string) error {
+func extractBinaries(targetDir, archivePath string) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}
 
-	cmd := exec.Command(
-		"tar",
-		"-xJf", archive,
-		"-C", targetDir,
-		"--strip-components=2",
-	)
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("extraction failed: %w", err)
+	xzReader, err := xz.NewReader(file)
+	if err != nil {
+		return err
 	}
 
-	binaries := []string{"ffmpeg", "ffprobe"}
-	for _, bin := range binaries {
-		path := filepath.Join(targetDir, bin)
-		if err := os.Chmod(path, 0755); err != nil {
+	tarReader := tar.NewReader(xzReader)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
 			return err
 		}
+
+		name := header.Name
+
+		if !strings.HasSuffix(name, "/bin/ffmpeg") &&
+			!strings.HasSuffix(name, "/bin/ffprobe") {
+			continue
+		}
+
+		outPath := filepath.Join(targetDir, filepath.Base(name))
+		outFile, err := os.Create(outPath)
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(outFile, tarReader); err != nil {
+			outFile.Close()
+			return err
+		}
+
+		outFile.Close()
+
+		if runtime.GOOS != "windows" {
+			err := os.Chmod(outPath, 0755)
+			if err != nil {
+				slog.Error(err.Error())
+				return err
+			}
+		}
+		fmt.Println("Extracted:", outPath)
 	}
 
-	fmt.Println("✅ ffmpeg and ffprobe extracted to ./ffmpeg/")
+	fmt.Println("✅ ffmpeg and ffprobe extracted successfully")
 	return nil
 }

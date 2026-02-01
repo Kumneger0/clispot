@@ -106,21 +106,17 @@ func detectPlatform() (string, error) {
 }
 
 func install(url, checksumURL, pathToFile, checksumDir, githubReleaseFileName string) (*ResolvedInstall, error) {
-	_, err := os.Create(pathToFile)
+	if err := os.MkdirAll(filepath.Dir(pathToFile), 0755); err != nil {
+		panic(err)
+	}
+
+	err := download(url, pathToFile, true)
 
 	if err != nil {
 		panic(err)
 	}
 
-	err = download(url, pathToFile, true)
-
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = os.Create(checksumDir)
-
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(checksumDir), 0755); err != nil {
 		panic(err)
 	}
 
@@ -129,7 +125,6 @@ func install(url, checksumURL, pathToFile, checksumDir, githubReleaseFileName st
 	if err != nil {
 		panic(err)
 	}
-
 	data, err := os.ReadFile(checksumDir)
 
 	if err != nil {

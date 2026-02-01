@@ -425,14 +425,13 @@ const (
 type DebsCheckResult struct {
 	ToolName  CoreDependency
 	Installed bool
-	// if the tool is installed, Path will contain the path to the executable
-	Path string
+	Path      string
 }
 
 func doAllDepsInstalled() []DebsCheckResult {
 	debsInCacheDirCheckPath := map[CoreDependency]string{
-		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg"),
-		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffprobe"),
+		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", "ffmpeg"),
+		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", "ffprobe"),
 		YtDlp:   filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp"),
 	}
 

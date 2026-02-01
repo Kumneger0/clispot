@@ -2,9 +2,8 @@ package install
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
-	"log/slog"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -51,69 +50,18 @@ var YtDlp = func(ctx context.Context) (*ResolvedInstall, error) {
 		panic(err)
 	}
 
-	ytDlpDirectory := filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp")
-
-	_, err = os.Create(ytDlpDirectory)
-
-	if err != nil {
-		panic(err)
-	}
-
-	err = download(url, ytDlpDirectory)
-
-	if err != nil {
-		panic(err)
-	}
-
 	checksumDownloadURL, err := findDownloadURL(rel, "SHA2-256SUMS")
 
 	if err != nil {
 		panic(err)
 	}
 
+	ytDlpDirectory := filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp")
 	checksumDir := filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp-checksum")
-
-	err = download(checksumDownloadURL, checksumDir)
-
-	if err != nil {
-		panic(err)
-	}
-
-	data, err := os.ReadFile(checksumDir)
-
-	if err != nil {
-		panic(err)
-	}
-
-	expectedHash, err := getExpectedHash(string(data), want)
-
-	if err != nil {
-		panic(err)
-	}
-
-	calculatedHash, err := calculateFileCheckSum(ytDlpDirectory)
-
-	if err != nil {
-		panic(err)
-	}
-
-	isValid := validateChecksum(calculatedHash, []byte(expectedHash))
-
-	if isValid {
-		slog.Error("check sum validation gone wrong")
-		fmt.Fprintln(os.Stderr, "there is something wrong while validating the downloaded binary could download the binary by ur sel")
-		os.Exit(1)
-	}
-
-	return &ResolvedInstall{
-		Executable: ytDlpDirectory,
-		Version:    "fuck it i don't care but im sure it is the latest version",
-		FromCache:  false,
-		Downloaded: true,
-	}, nil
+	return install(url, checksumDownloadURL, ytDlpDirectory, checksumDir, want)
 }
 
-func getExpectedHash(checksumData string, filename string) (string, error) {
+func getExpectedHash(checksumData string, filename string) ([]byte, error) {
 	lines := strings.SplitSeq(checksumData, "\n")
 
 	for line := range lines {
@@ -126,8 +74,8 @@ func getExpectedHash(checksumData string, filename string) (string, error) {
 		name := fields[1]
 
 		if name == filename {
-			return hash, nil
+			return hex.DecodeString(hash)
 		}
 	}
-	return "", fmt.Errorf("checksum not found for %s", filename)
+	return nil, fmt.Errorf("checksum not found for %s", filename)
 }

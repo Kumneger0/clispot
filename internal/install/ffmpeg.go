@@ -2,9 +2,9 @@ package install
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/kumneger0/clispot/internal/config"
 )
@@ -62,27 +62,27 @@ func FFmpeg(ctx context.Context) (*ResolvedInstall, error) {
 		panic(err)
 	}
 
-	ffmpegDirectory := filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg")
+	splitted := strings.Split(ffmpegBinConfigs[plat].ffmpegURL, "/")
 
-	_, err = os.Create(ffmpegDirectory)
+	filename := splitted[len(splitted)-1]
 
-	if err != nil {
-		panic(err)
-	}
-
-	err = download(ffmpegBinConfigs[plat].ffmpegURL, ffmpegDirectory)
-
-	if err != nil {
-		panic(err)
-	}
+	ffmpegDirectory := filepath.Join(config.GetCacheDir(runtime.GOOS), filename)
 
 	checksumDir := filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg-checksum")
 
-	err = download(checksumURL, checksumDir)
+	result, err := install(ffmpegBinConfigs[plat].ffmpegURL, checksumURL, ffmpegDirectory, checksumDir, filename)
 
 	if err != nil {
 		panic(err)
 	}
 
-	return nil, nil
+	targetDir := filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg")
+
+	err = extractBinaries(targetDir, ffmpegDirectory)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return result, nil
 }

@@ -37,7 +37,15 @@ var YtDlp = func(ctx context.Context) (*ResolvedInstall, error) {
 		return nil, nil
 	}
 
-	ytDlpDirectory := filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp")
+	var fileName string
+
+	if runtime.GOOS == "windows" {
+		fileName = "yt-dlp.exe"
+	} else {
+		fileName = "yt-dlp"
+	}
+
+	ytDlpDirectory := filepath.Join(config.GetCacheDir(runtime.GOOS), fileName)
 	checksumDir := filepath.Join(config.GetCacheDir(runtime.GOOS), "yt-dlp-checksum")
 	plat, err := detectPlatform()
 	if err != nil {

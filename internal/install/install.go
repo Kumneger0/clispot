@@ -244,16 +244,24 @@ func extractBinaries(targetDir, archivePath string) error {
 func extractZipBinaries(targetDir, zipPath string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 	defer r.Close()
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 
 	for _, f := range r.File {
-		if !strings.HasSuffix(f.Name, "ffmpeg") && !strings.HasSuffix(f.Name, "ffprobe") {
+		ffmpegFileName := "ffmpeg"
+		ffprobeFileName := "ffprobe"
+		if runtime.GOOS == "windows" {
+			ffmpegFileName = "ffmpeg.exe"
+			ffprobeFileName = "ffprobe.exe"
+		}
+		if !strings.HasSuffix(f.Name, ffmpegFileName) && !strings.HasSuffix(f.Name, ffprobeFileName) {
 			continue
 		}
 
@@ -261,11 +269,13 @@ func extractZipBinaries(targetDir, zipPath string) error {
 
 		rc, err := f.Open()
 		if err != nil {
+			slog.Error(err.Error())
 			return err
 		}
 
 		outFile, err := os.Create(outPath)
 		if err != nil {
+			slog.Error(err.Error())
 			rc.Close()
 			return err
 		}
@@ -274,6 +284,7 @@ func extractZipBinaries(targetDir, zipPath string) error {
 		outFile.Close()
 		rc.Close()
 		if err != nil {
+			slog.Error(err.Error())
 			return err
 		}
 

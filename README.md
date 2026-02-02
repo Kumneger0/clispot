@@ -1,10 +1,12 @@
 # clispot
 
-listen to your favorite spotify songs right from your terminal
+listen to your favorite spotify songs right from your terminal. **No Spotify Premium Required!**
 
 ## 📖 Documentation
 
 For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [Documentation](https://clispot.kumneger.dev).
+
+Curious how it works? Read the [deep dive article](https://kumneger.dev/blog/spotify-for-your-terminal).
 
 ## TODO
 

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/godbus/dbus/v5"
 	"github.com/kumneger0/clispot/internal/command"
+	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/lyrics"
 	"github.com/kumneger0/clispot/internal/notification"
 	"github.com/kumneger0/clispot/internal/spotify"
@@ -143,6 +144,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.SelectedTrack != nil && m.SelectedTrack.SkipCount == youtube.SearchResultCount {
 				alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "We have failed to find the matching song on youtube")
 				notification.Notify("Clispot", "We have failed to find the matching song on youtube")
+				appConfig := config.GetConfig()
+				if appConfig.SkipOnNoMatch {
+					model, cmd := m.handleMusicChange(true, false)
+					m = model
+					cmds = append(cmds, cmd)
+				}
 			}
 		}
 		if msg.LogType == youtube.WARNING {
@@ -531,7 +538,7 @@ func (m Model) getMusicLyrics(track *SelectedTrack) (Model, tea.Cmd) {
 	return m, tea.Batch(loadingCmd, lyricsCmd, alertCmd)
 }
 
-func (m Model) handleMusicChange(isForward, isSkip bool) (Model, tea.Cmd) {
+func (m Model) handleMusicChange(isForward, shouldRemoveTheCacheFile bool) (Model, tea.Cmd) {
 	if m.MusicQueueList == nil {
 		return m, nil
 	}
@@ -575,7 +582,7 @@ func (m Model) handleMusicChange(isForward, isSkip bool) (Model, tea.Cmd) {
 			m = model
 		}
 	}
-	model, cmd := m.PlaySelectedMusic(musicToPlay, isSkip)
+	model, cmd := m.PlaySelectedMusic(musicToPlay, shouldRemoveTheCacheFile)
 	m = model
 	return m, tea.Batch(cmd, paginationCmd)
 }
@@ -871,7 +878,7 @@ func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 	}
 }
 
-func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip bool) (Model, tea.Cmd) {
+func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, shouldRemoveTheCacheFile bool) (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	trackName := selectedMusic.Track.Name
@@ -884,7 +891,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 	playerProcess := m.PlayerProcess
 
 	if playerProcess != nil {
-		err := playerProcess.Close(isSkip)
+		err := playerProcess.Close(shouldRemoveTheCacheFile)
 		if err != nil {
 			slog.Error(err.Error())
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())

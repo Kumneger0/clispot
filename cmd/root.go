@@ -216,11 +216,19 @@ func runRoot(cmd *cobra.Command) error {
 		ytDlpArgs.Cookies = &cookiesFile
 	}
 
+	isHeadlessMode, err := cmd.Flags().GetBool("headless")
+
+	if err != nil {
+		slog.Error(err.Error())
+	}
+
 	config.SetConfig(&config.Config{
 		DebugDir:      &debugDir,
 		CacheDisabled: isCacheDisabled,
 		CacheDir:      &cacheDir,
 		YtDlpArgs:     &ytDlpArgs,
+		HeadlessMode:  isHeadlessMode,
+		SkipOnNoMatch: configFromFile.SkipOnNoMatch,
 	})
 
 	logger := logSetup.Init(debugDir)
@@ -277,12 +285,6 @@ func runRoot(cmd *cobra.Command) error {
 			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotConfigDir)
 			os.Exit(1)
 		}
-	}
-
-	isHeadlessMode, err := cmd.Flags().GetBool("headless")
-
-	if err != nil {
-		slog.Error(err.Error())
 	}
 
 	ins, messageChan, err := mpris.GetDbusInstance()

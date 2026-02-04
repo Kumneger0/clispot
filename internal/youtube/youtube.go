@@ -24,7 +24,7 @@ import (
 
 type Player struct {
 	OtoPlayer         *oto.Player
-	Close             func(isSkip bool) error
+	Close             func(shouldRemoveTheCacheFile bool) error
 	ByteCounterReader *byteCounterReader
 }
 
@@ -226,7 +226,7 @@ func SearchAndDownloadMusic(
 	return &Player{
 		OtoPlayer:         player,
 		ByteCounterReader: counter,
-		Close: func(isSkip bool) error {
+		Close: func(shouldRemoveTheCacheFile bool) error {
 			var firstErr error
 			if player != nil {
 				player.Close()
@@ -260,7 +260,7 @@ func SearchAndDownloadMusic(
 				_ = cacheFile.Close()
 			}
 
-			if isSkip {
+			if shouldRemoveTheCacheFile {
 				if err := os.Remove(musicPath); err != nil && !os.IsNotExist(err) && firstErr == nil {
 					slog.Error(err.Error())
 					firstErr = err

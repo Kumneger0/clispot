@@ -18,6 +18,7 @@ type Config struct {
 	CacheDir      *string    `json:"cache-dir"`
 	YtDlpArgs     *YtDlpArgs `json:"yt-dlp-args"`
 	HeadlessMode  bool       `json:"headless-mode"`
+	SkipOnNoMatch bool       `json:"skip-on-no-match"`
 }
 
 var userConfigDir = os.UserConfigDir
@@ -81,6 +82,7 @@ func GetDefaultConfig(goos string) *Config {
 		CacheDir:      &defaultCacheDir,
 		YtDlpArgs:     &YtDlpArgs{},
 		HeadlessMode:  false,
+		SkipOnNoMatch: true,
 	}
 }
 

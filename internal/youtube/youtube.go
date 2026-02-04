@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"io"
 	"log/slog"
@@ -29,6 +30,8 @@ type Player struct {
 
 var otoContext *oto.Context
 var once sync.Once
+
+const SearchResultCount = 5
 
 func getOtoContext() (*oto.Context, chan struct{}, error) {
 	var readyChan chan struct{}
@@ -82,7 +85,7 @@ func SearchAndDownloadMusic(
 	if coreDepsPath == nil {
 		return nil, errors.New("failed to find necessary dependencies")
 	}
-	searchQuery := "ytsearch5:" + trackName
+	searchQuery := "ytsearch" + strconv.Itoa(SearchResultCount) + ":" + trackName
 	if len(artistNames) > 0 {
 		searchQuery += " " + artistNames[0]
 	}
@@ -421,6 +424,7 @@ const (
 	ERROR    YtDlpLogs = "error"
 	DOWNLOAD YtDlpLogs = "download"
 	YOUTUBE  YtDlpLogs = "youtube"
+	SKIPPING YtDlpLogs = "skipping"
 )
 
 type ScanFuncArgs struct {
@@ -435,6 +439,12 @@ func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs))
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.Contains(strings.ToLower(line), "skipping") {
+			scanFunc(ScanFuncArgs{
+				Line:    "Skipping " + afterKeyword(line, "skipping"),
+				LogType: SKIPPING,
+			})
+		}
 		if strings.Contains(strings.ToLower(line), "error") {
 			scanFunc(ScanFuncArgs{
 				Line:    afterKeyword(line, "error"),

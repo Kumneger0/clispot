@@ -55,6 +55,8 @@ type SpotifySearchResult struct {
 type SelectedTrack struct {
 	isLiked bool
 	Track   *types.PlaylistTrackObject
+	//lets store skip count if it reachs 5 which means we are not able to find the matching song on youtube
+	SkipCount int
 }
 
 type MusicQueueList struct {

@@ -140,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.SelectedTrack.SkipCount++
 			//we are using the first 5 results from the search response
 			//if all of them are not matching we are going to show an error message
-			if m.SelectedTrack.SkipCount == youtube.SearchResultCount {
+			if m.SelectedTrack != nil && m.SelectedTrack.SkipCount == youtube.SearchResultCount {
 				alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "We have failed to find the matching song on youtube")
 				notification.Notify("Clispot", "We have failed to find the matching song on youtube")
 			}

@@ -136,6 +136,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case youtube.ScanFuncArgs:
 		var alertCmd tea.Cmd
+		if msg.LogType == youtube.SKIPPING {
+			m.SelectedTrack.SkipCount++
+			//we are using the first 5 results from the search response
+			//if all of them are not matching we are going to show an error message
+			if m.SelectedTrack.SkipCount == youtube.SearchResultCount {
+				alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "We have failed to find the matching song on youtube")
+				notification.Notify("Clispot", "We have failed to find the matching song on youtube")
+			}
+		}
 		if msg.LogType == youtube.WARNING {
 			alertCmd = m.Alert.NewAlertCmd(bubbleup.WarnKey, msg.Line)
 		}
@@ -955,8 +964,9 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, isSkip
 
 	m.PlayerProcess = process
 	m.SelectedTrack = &SelectedTrack{
-		isLiked: false,
-		Track:   &selectedMusic,
+		isLiked:   false,
+		Track:     &selectedMusic,
+		SkipCount: 0,
 	}
 
 	if m.MainViewMode == LyricsMode {

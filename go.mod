@@ -22,7 +22,7 @@ require (
 	github.com/ulikunitz/xz v0.5.15
 	go.dalton.dog/bubbleup v1.3.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
-	golang.org/x/sys v0.40.0
+	golang.org/x/sys v0.41.0
 	golang.org/x/tools v0.41.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	mvdan.cc/gofumpt v0.9.2

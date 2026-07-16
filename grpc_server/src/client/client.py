@@ -1,0 +1,146 @@
+from typing import cast
+from ytmusicapi import YTMusic, LikeStatus
+from yt_dlp import YoutubeDL
+
+from grpc_server.src.client.types import (
+    YTSong,
+    YTLikedSongsResponse,
+    YTHomeSection,
+    YTLibraryAlbum,
+    YTLibraryPlaylist,
+    YTAlbumResponse,
+    YTLibraryArtist,
+    YTAccountInfo,
+    YTSongResponse,
+    YTArtistResponse,
+    YTSearchResult,
+    YTSearchFilter
+)
+
+class MusicClient:
+    client: YTMusic
+
+    def __init__(self, auth_file: str) -> None:
+        self.client = YTMusic(auth_file)
+    
+    def get_stream_url(self, video_id:str) -> str:
+        full_url: str = "https://www.youtube.com/watch?v=" + video_id
+        options  = {
+            "format": "bestaudio",
+            "quiet": True,
+        }
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(
+                full_url,
+                download=False,
+            )
+        url = info.get("url")
+        if not isinstance(url, str):
+            raise RuntimeError("Unable to extract stream URL")
+        return url
+
+    def get_home(self) -> list[YTHomeSection]:
+        res: object = self.client.get_home()
+        return cast(list[YTHomeSection], res)
+
+    def get_library(self, limit: int = 25) -> list[YTSong]:
+        return self.get_user_saved_tracks(limit)
+
+    def get_user_saved_tracks(self, limit: int = 100) -> list[YTSong]:
+        raw_songs: object = self.client.get_liked_songs(limit)
+        songs = cast(YTLikedSongsResponse, cast(object, raw_songs))
+        tracks = songs.get('tracks')
+        if isinstance(tracks, list):
+            return tracks
+        return []
+
+    def get_user_saved_albums(self, limit: int = 25) -> list[YTLibraryAlbum]:
+        raw_albums: object = self.client.get_library_albums(limit=limit)
+        return cast(list[YTLibraryAlbum], raw_albums)
+
+    def get_user_playlists(self, limit: int = 25) -> list[YTLibraryPlaylist]:
+        raw_playlists: object = self.client.get_library_playlists(limit=limit)
+        return cast(list[YTLibraryPlaylist], raw_playlists)
+
+    def get_track(self, video_id: str) -> YTSongResponse:
+        raw_song: object = self.client.get_song(videoId=video_id)
+        song_dict = cast(dict[str, object], raw_song)
+        video_details = song_dict.get("videoDetails")
+        track: YTSongResponse = cast(YTSongResponse, video_details)
+        stream_url = ''
+        track_video_id = track.get('videoId')
+        print('video id', track_video_id)
+        if isinstance(track_video_id, str):
+                stream_url = self.get_stream_url(video_id=track_video_id)
+        
+        print('stream ulr', stream_url)
+        track['url'] = stream_url
+        return track
+
+    def get_album_tracks(self, browse_id: str) -> YTAlbumResponse:
+        raw_album: object = self.client.get_album(browseId=browse_id)
+        return cast(YTAlbumResponse, cast(object, raw_album))
+
+    def get_playlist_items(self, playlist_id: str, limit: int = 100) -> YTLikedSongsResponse:
+        raw_playlist: object = self.client.get_playlist(playlistId=playlist_id, limit=limit)
+        return cast(YTLikedSongsResponse, cast(object, raw_playlist))
+
+    def get_search_results(self, query: str, filter_type: YTSearchFilter | None = None, limit: int = 20) -> list[YTSearchResult]:
+        raw_results: object = self.client.search(query=query, filter=filter_type, limit=limit)
+        return cast(list[YTSearchResult], raw_results)
+
+    def get_artist_top_tracks(self, channel_id: str) -> YTArtistResponse:
+        raw_artist: object = self.client.get_artist(channelId=channel_id)
+        return cast(YTArtistResponse, cast(object, raw_artist))
+
+    def get_followed_artists(self, limit: int = 25) -> list[YTLibraryArtist]:
+        raw_artists: object = self.client.get_library_subscriptions(limit=limit)
+        return cast(list[YTLibraryArtist], raw_artists)
+
+    def get_user_profile(self) -> YTAccountInfo:
+        try:
+            raw_info: object = self.client.get_account_info()
+            return cast(YTAccountInfo, cast(object, raw_info))
+        except Exception:
+            return {
+                "accountName": "YouTube Music User",
+                "channelHandle": "@ytmusic_user",
+                "accountPhotoUrl": ""
+            }
+
+    def get_user_top_items(self) -> list[YTSong]:
+        raw_history: object = self.client.get_history()
+        return cast(list[YTSong], raw_history)
+
+    def check_user_saved_track(self, video_id: str) -> bool:
+        try:
+            raw_song = cast(dict[str, object], self.client.get_song(videoId=video_id))
+            if raw_song:
+                return True
+        except Exception:
+            pass
+        return False
+
+    def save_remove_track(self, video_ids: list[str], is_remove: bool) -> None:
+        rating = LikeStatus.INDIFFERENT if is_remove else LikeStatus.LIKE
+        for video_id in video_ids:
+            _ = self.client.rate_song(videoId=video_id, rating=rating)
+
+    def search(self, query: str) -> list[YTSong]:
+        res = self.client.search(
+            query,
+            filter="songs"
+        )
+        return cast(list[YTSong], res)
+
+    def like_song(self, video_id: str) -> object:
+        return self.client.rate_song(
+            video_id,
+            LikeStatus.LIKE
+        )
+
+    def unlike_song(self, video_id: str) -> object:
+        return self.client.rate_song(
+            video_id,
+            LikeStatus.INDIFFERENT
+        )

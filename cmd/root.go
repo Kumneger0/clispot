@@ -259,15 +259,7 @@ func runRoot(cmd *cobra.Command) error {
 		if dep.ToolName == FFmpeg {
 			coreDepsPath.FFmpeg = dep.Path
 		}
-		if dep.ToolName == YtDlp {
-			coreDepsPath.YtDlp = dep.Path
-		}
-		if dep.ToolName == FFprobe {
-			coreDepsPath.FFprobe = dep.Path
-		}
 	}
-
-	// Authentication is handled by the gRPC server (Python side)
 
 	ins, messageChan, err := mpris.GetDbusInstance()
 

@@ -2,15 +2,15 @@ from concurrent import futures
 import grpc
 import os
 import sys
-from typing import  override
+from typing import  Any, override
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 
 from grpc_server.gen import music_pb2, music_pb2_grpc
 
-from grpc_server.src.client.client import MusicClient
-from grpc_server.src.client.types import (
+from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
+from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
     YTSearchResult,
     YTSong,
     YTThumbnail,
@@ -377,7 +377,12 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
     def UnlikeSong(self, request: music_pb2.UnlikeSongRequest, context: grpc.ServicerContext) -> music_pb2.UnlikeSongResponse:
         _ = self.client.unlike_song(request.video_id)
         return music_pb2.UnlikeSongResponse()
-
+    @override
+    def GetVideoStreamURL(self, request: music_pb2.GetVideoStreamURLRequest, context:grpc.ServicerContext) -> music_pb2.GetVideoStreamURLResponse:
+        stream_url: str = self.client.get_stream_url(request.videoId)
+        return music_pb2.GetVideoStreamURLResponse(
+            url=stream_url
+        )
 
 def serve() -> None:
     port = "50051"

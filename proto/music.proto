@@ -44,6 +44,7 @@ service MusicService {
 
   // Legacy search (kept for backward compat)
   rpc SearchSongs(SearchSongsRequest) returns (SearchSongsResponse);
+  rpc GetVideoStreamURL(GetVideoStreamURLRequest) returns (GetVideoStreamURLResponse);
 }
 
 // ─────────────────────────────────────────────────────
@@ -378,4 +379,14 @@ message SearchSongsRequest {
 
 message SearchSongsResponse {
   repeated Song songs = 1;
+}
+
+
+message GetVideoStreamURLRequest {
+  string videoId = 1;
+}
+
+
+message GetVideoStreamURLResponse {
+  string url = 1;
 }

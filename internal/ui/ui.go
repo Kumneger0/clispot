@@ -72,7 +72,7 @@ type Model struct {
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
-	PlayerProcess       *youtube.Player
+	PlayerProcess       *types.Player
 	LyricsServerProcess *os.Process
 	SelectedTrack       *SelectedTrack
 	YtDlpErrWriter      *io.PipeWriter

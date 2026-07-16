@@ -1,0 +1,399 @@
+from concurrent import futures
+import grpc
+import os
+import sys
+from typing import  override
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
+
+from grpc_server.gen import music_pb2, music_pb2_grpc
+from grpc_server.src.clispot.client import MusicClient
+from grpc_server.src.clispot.types import (
+    YTSearchResult,
+    YTSong,
+    YTThumbnail,
+    YTArtist,
+    YTLibraryAlbum,
+    YTLibraryPlaylist,
+    YTSearchFilter
+)
+
+def _to_proto_thumbnail(thumb: YTThumbnail) -> music_pb2.Thumbnail:
+    return music_pb2.Thumbnail(
+        url=thumb.get("url") or "",
+        width=thumb.get("width") or 0,
+        height=thumb.get("height") or 0,
+    )
+
+
+def _to_proto_artist(artist: YTArtist) -> music_pb2.Artist:
+    return music_pb2.Artist(
+        id=artist.get("id") or "",
+        name=artist.get("name") or "",
+    )
+
+
+def _to_proto_song(song: YTSong) -> music_pb2.Song:
+    """Helper function to map a song dictionary from ytmusicapi to a Protobuf Song message."""
+    album_name = ""
+    album_id = ""
+    album_data = song.get("album")
+    if isinstance(album_data, dict):
+        album_name = album_data.get("name") or ""
+        album_id = album_data.get("id") or ""
+    elif isinstance(album_data, str):
+        album_name = album_data
+
+    song_msg = music_pb2.Song(
+        video_id=song.get("videoId") or "",
+        title=song.get("title") or "",
+        album=album_name,
+        album_id=album_id,
+        duration_seconds=song.get("duration_seconds") or 0,
+        liked=(song.get("likeStatus") == "LIKE"),
+        is_explicit=bool(song.get("isExplicit")),
+    )
+
+    for artist in song.get("artists", []):
+        song_msg.artists.append(_to_proto_artist(artist))
+
+    for thumbnail in song.get("thumbnails", []):
+        song_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+
+    return song_msg
+
+
+def _to_proto_album(album: YTLibraryAlbum) -> music_pb2.Album:
+    album_msg = music_pb2.Album(
+        browse_id=album.get("browseId") or "",
+        title=album.get("title") or "",
+        year=album.get("year") or "",
+        is_explicit=bool(album.get("isExplicit")),
+        type=album.get("type") or "",
+    )
+    for artist in album.get("artists", []):
+        album_msg.artists.append(_to_proto_artist(artist))
+    for thumbnail in album.get("thumbnails", []):
+        album_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+    return album_msg
+
+
+def _to_proto_playlist(playlist: YTLibraryPlaylist) -> music_pb2.Playlist:
+    count_val = playlist.get("count")
+    count_int = 0
+    if isinstance(count_val, int):
+        count_int = count_val
+    elif isinstance(count_val, str):
+        try:
+            count_int = int(count_val)
+        except ValueError:
+            pass
+
+    author_name = ""
+    author_val = playlist.get("author")
+    if isinstance(author_val, list) and len(author_val) > 0:
+        author_name = author_val[0].get("name") or ""
+    elif isinstance(author_val, str):
+        author_name = author_val
+
+    playlist_msg = music_pb2.Playlist(
+        playlist_id=playlist.get("playlistId") or "",
+        title=playlist.get("title") or "",
+        description=playlist.get("description") or "",
+        count=count_int,
+        author=author_name,
+    )
+    for thumbnail in playlist.get("thumbnails", []):
+        playlist_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+    return playlist_msg
+
+
+class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
+    """gRPC Servicer implementing the MusicService interface, mapping requests to MusicClient."""
+
+    def __init__(self, auth_file: str) -> None:
+        self.client: MusicClient = MusicClient(auth_file)
+    @override
+    def Login(self, request: music_pb2.LoginRequest, context: grpc.ServicerContext) -> music_pb2.LoginResponse:
+        return music_pb2.LoginResponse(authenticated=True)
+
+    @override
+    def GetLibrary(self, request: music_pb2.GetLibraryRequest, context: grpc.ServicerContext) -> music_pb2.GetLibraryResponse:
+        limit = request.limit if request.limit > 0 else 25
+        songs_data = self.client.get_library(limit=limit)
+        songs_list = [_to_proto_song(song) for song in songs_data]
+        return music_pb2.GetLibraryResponse(songs=songs_list, continuation="")
+
+    @override
+    def GetUserSavedTracks(self, request: music_pb2.GetUserSavedTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetUserSavedTracksResponse:
+        limit = request.limit if request.limit > 0 else 100
+        songs_data = self.client.get_user_saved_tracks(limit=limit)
+        songs_list = [_to_proto_song(song) for song in songs_data]
+        return music_pb2.GetUserSavedTracksResponse(tracks=songs_list, total=len(songs_list))
+
+    @override
+    def GetUserSavedAlbums(self, request: music_pb2.GetUserSavedAlbumsRequest, context: grpc.ServicerContext) -> music_pb2.GetUserSavedAlbumsResponse:
+        limit = request.limit if request.limit > 0 else 25
+        albums_data = self.client.get_user_saved_albums(limit=limit)
+        albums_list = [_to_proto_album(album) for album in albums_data]
+        return music_pb2.GetUserSavedAlbumsResponse(albums=albums_list, total=len(albums_list))
+
+    @override
+    def GetUserPlaylists(self, request: music_pb2.GetUserPlaylistsRequest, context: grpc.ServicerContext) -> music_pb2.GetUserPlaylistsResponse:
+        limit = request.limit if request.limit > 0 else 25
+        playlists_data = self.client.get_user_playlists(limit=limit)
+        playlists_list = [_to_proto_playlist(playlist) for playlist in playlists_data]
+        return music_pb2.GetUserPlaylistsResponse(playlists=playlists_list, total=len(playlists_list))
+
+    @override
+    def GetTrack(self, request: music_pb2.GetTrackRequest, context: grpc.ServicerContext) -> music_pb2.GetTrackResponse:
+        track_details = self.client.get_track(video_id=request.video_id)
+        if not track_details:
+            return music_pb2.GetTrackResponse()
+        
+        song_msg = music_pb2.Song(
+            video_id=track_details.get("videoId") or request.video_id,
+            title=track_details.get("title") or "",
+            url=track_details.get('url'),
+            album="",
+            album_id="",
+            duration_seconds=0,
+            liked=False,
+            is_explicit=False,
+        )
+        author = track_details.get("author") or ""
+        if author:
+            song_msg.artists.append(music_pb2.Artist(id="", name=author))
+        
+        thumbs_dict: dict[str, list[YTThumbnail]] = track_details.get("thumbnail") or {}
+        if thumbs_dict:
+            for thumb in thumbs_dict.get("thumbnails", []):
+                song_msg.thumbnails.append(_to_proto_thumbnail(thumb))
+
+        len_str: str | None = track_details.get("lengthSeconds")
+        if len_str:
+            try:
+                song_msg.duration_seconds = int(len_str)
+            except ValueError:
+                pass
+
+        return music_pb2.GetTrackResponse(track=song_msg)
+
+    @override
+    def GetAlbumTracks(self, request: music_pb2.GetAlbumTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetAlbumTracksResponse:
+        album_data = self.client.get_album_tracks(browse_id=request.browse_id)
+        
+        response = music_pb2.GetAlbumTracksResponse(
+            title=album_data.get("title") or "",
+            year=album_data.get("year") or "",
+            total=album_data.get("trackCount") or 0,
+            description=album_data.get("description") or "",
+        )
+        for artist in album_data.get("artists", []):
+            response.artists.append(_to_proto_artist(artist))
+        for thumbnail in album_data.get("thumbnails", []):
+            response.thumbnails.append(_to_proto_thumbnail(thumbnail))
+        for track in album_data.get("tracks", []):
+            response.tracks.append(_to_proto_song(track))
+        
+        return response
+
+    @override
+    def GetPlaylistItems(self, request: music_pb2.GetPlaylistItemsRequest, context: grpc.ServicerContext) -> music_pb2.GetPlaylistItemsResponse:
+        limit = request.limit if request.limit > 0 else 100
+        playlist_data = self.client.get_playlist_items(playlist_id=request.playlist_id, limit=limit)
+        
+        author_name = ""
+        author_val = playlist_data.get("author")
+        if isinstance(author_val, dict):
+            author_name = author_val.get("name") or ""
+        elif isinstance(author_val, str):
+            author_name = author_val
+
+        response = music_pb2.GetPlaylistItemsResponse(
+            title=playlist_data.get("title") or "",
+            description=playlist_data.get("description") or "",
+            author=author_name,
+            year=playlist_data.get("year") or "",
+            track_count=playlist_data.get("trackCount") or 0,
+        )
+        for thumbnail in playlist_data.get("thumbnails", []):
+            response.thumbnails.append(_to_proto_thumbnail(thumbnail))
+        for track in playlist_data.get("tracks", []):
+            response.tracks.append(_to_proto_song(track))
+            
+        return response
+
+    @override
+    def GetSearchResults(self, request: music_pb2.GetSearchResultsRequest, context: grpc.ServicerContext) -> music_pb2.GetSearchResultsResponse:
+        limit = request.limit if request.limit > 0 else 20
+        filter_val: YTSearchFilter | None = None
+        if request.filter in ("songs", "videos", "albums", "artists", "playlists"):
+            filter_val = request.filter
+        
+        raw_results: list[YTSearchResult] = self.client.get_search_results(query=request.query, filter_type=filter_val, limit=limit)
+        response: music_pb2.GetSearchResultsResponse = music_pb2.GetSearchResultsResponse()
+        
+        for result in raw_results:
+            result_type = result.get("resultType")
+            if result_type == "song":
+                song_item = music_pb2.SearchResultSong(
+                    video_id=result.get("videoId") or "",
+                    title=result.get("title") or "",
+                    album="",
+                    album_id="",
+                    duration_seconds=result.get("duration_seconds") or 0,
+                    is_explicit=bool(result.get("isExplicit")),
+                )
+                album_info = result.get("album")
+                if isinstance(album_info, dict):
+                    song_item.album = album_info.get("name") or ""
+                    song_item.album_id = album_info.get("id") or ""
+                elif isinstance(album_info, str):
+                    song_item.album = album_info
+
+                for artist in result.get("artists", []):
+                    song_item.artists.append(_to_proto_artist(artist))
+                for thumbnail in result.get("thumbnails", []):
+                    song_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.songs.append(song_item)
+                
+            elif result_type == "album":
+                album_item = music_pb2.SearchResultAlbum(
+                    browse_id=result.get("browseId") or "",
+                    title=result.get("title") or "",
+                    year=result.get("year") or "",
+                    type=result.get("type") or "",
+                    is_explicit=bool(result.get("isExplicit")),
+                )
+                for artist in result.get("artists", []):
+                    album_item.artists.append(_to_proto_artist(artist))
+                for thumbnail in result.get("thumbnails", []):
+                    album_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.albums.append(album_item)
+                
+            elif result_type == "artist":
+                artist_item = music_pb2.SearchResultArtist(
+                    browse_id=result.get("browseId") or "",
+                    name=result.get("artist") or "",
+                    subscribers=result.get("subscribers") or "",
+                )
+                for thumbnail in result.get("thumbnails", []):
+                    artist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.artists.append(artist_item)
+                
+            elif result_type == "playlist":
+                playlist_item = music_pb2.SearchResultPlaylist(
+                    browse_id=result.get("browseId") or "",
+                    title=result.get("title") or "",
+                    author=result.get("author") or "",
+                    item_count=result.get("itemCount") or "",
+                )
+                for thumbnail in result.get("thumbnails", []):
+                    playlist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.playlists.append(playlist_item)
+                
+        return response
+
+    @override
+    def GetArtistTopTracks(self, request: music_pb2.GetArtistTopTracksRequest, context: grpc.ServicerContext) -> music_pb2.GetArtistTopTracksResponse:
+        artist_data = self.client.get_artist_top_tracks(channel_id=request.channel_id)
+        
+        response = music_pb2.GetArtistTopTracksResponse(
+            name=artist_data.get("name") or "",
+            subscribers=artist_data.get("subscribers") or "",
+        )
+        for thumbnail in artist_data.get("thumbnails", []):
+            response.thumbnails.append(_to_proto_thumbnail(thumbnail))
+            
+        songs_sec = artist_data.get("songs") or {}
+        if songs_sec:
+            for song in songs_sec.get("results", []):
+                response.tracks.append(_to_proto_song(song))
+                
+        return response
+
+    @override
+    def GetFollowedArtists(self, request: music_pb2.GetFollowedArtistsRequest, context: grpc.ServicerContext) -> music_pb2.GetFollowedArtistsResponse:
+        limit = request.limit if request.limit > 0 else 25
+        artists_data = self.client.get_followed_artists(limit=limit)
+        
+        response = music_pb2.GetFollowedArtistsResponse(total=len(artists_data))
+        for artist in artists_data:
+            artist_msg = music_pb2.FollowedArtist(
+                channel_id=artist.get("browseId") or "",
+                name=artist.get("artist") or "",
+                subscribers=artist.get("subscribers") or "",
+            )
+            for thumbnail in artist.get("thumbnails", []):
+                artist_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+            response.artists.append(artist_msg)
+            
+        return response
+
+    @override
+    def GetUserProfile(self, request: music_pb2.GetUserProfileRequest, context: grpc.ServicerContext) -> music_pb2.GetUserProfileResponse:
+        user_info = self.client.get_user_profile()
+        response = music_pb2.GetUserProfileResponse(
+            name=user_info.get("accountName") or "",
+            channel_id=user_info.get("channelHandle") or "",
+        )
+        photo_url = user_info.get("accountPhotoUrl") or ""
+        if photo_url:
+            response.thumbnails.append(music_pb2.Thumbnail(url=photo_url, width=0, height=0))
+        return response
+
+    @override
+    def GetUserTopItems(self, request: music_pb2.GetUserTopItemsRequest, context: grpc.ServicerContext) -> music_pb2.GetUserTopItemsResponse:
+        limit = request.limit if request.limit > 0 else 25
+        songs_data = self.client.get_user_top_items()
+        songs_list = [_to_proto_song(song) for song in songs_data[:limit]]
+        return music_pb2.GetUserTopItemsResponse(tracks=songs_list, total=len(songs_list))
+
+    @override
+    def CheckUserSavedTrack(self, request: music_pb2.CheckUserSavedTrackRequest, context: grpc.ServicerContext) -> music_pb2.CheckUserSavedTrackResponse:
+        is_saved = self.client.check_user_saved_track(video_id=request.video_id)
+        return music_pb2.CheckUserSavedTrackResponse(is_saved=is_saved)
+
+    @override
+    def SaveRemoveTrack(self, request: music_pb2.SaveRemoveTrackRequest, context: grpc.ServicerContext) -> music_pb2.SaveRemoveTrackResponse:
+        self.client.save_remove_track(video_ids=list(request.video_ids), is_remove=request.is_remove)
+        return music_pb2.SaveRemoveTrackResponse()
+
+    @override
+    def SearchSongs(self, request: music_pb2.SearchSongsRequest, context: grpc.ServicerContext) -> music_pb2.SearchSongsResponse:
+        songs_data = self.client.search(query=request.query)
+        songs_list = [_to_proto_song(song) for song in songs_data]
+        return music_pb2.SearchSongsResponse(songs=songs_list)
+
+    @override
+    def LikeSong(self, request: music_pb2.LikeSongRequest, context: grpc.ServicerContext) -> music_pb2.LikeSongResponse:
+        _ = self.client.like_song(request.video_id)
+        return music_pb2.LikeSongResponse()
+
+    @override
+    def UnlikeSong(self, request: music_pb2.UnlikeSongRequest, context: grpc.ServicerContext) -> music_pb2.UnlikeSongResponse:
+        _ = self.client.unlike_song(request.video_id)
+        return music_pb2.UnlikeSongResponse()
+
+
+def serve() -> None:
+    port = "50051"
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    servicer = MusicService("browser.json")
+    music_pb2_grpc.add_MusicServiceServicer_to_server(servicer, server) # type: ignore  # pyright: ignore[reportUnknownMemberType]
+
+    _ = server.add_insecure_port("[::]:" + port)
+    server.start()
+    print("Server started, listening on " + port)
+    _ = server.wait_for_termination()
+
+
+if __name__ == "__main__":
+    serve()
+
+ 
+
+
+    

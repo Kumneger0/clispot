@@ -45,6 +45,9 @@ service MusicService {
   // Legacy search (kept for backward compat)
   rpc SearchSongs(SearchSongsRequest) returns (SearchSongsResponse);
   rpc GetVideoStreamURL(GetVideoStreamURLRequest) returns (GetVideoStreamURLResponse);
+
+  // Home Page
+  rpc GetHomePage(GetHomePageRequest) returns (GetHomePageResponse);
 }
 
 // ─────────────────────────────────────────────────────
@@ -379,6 +382,28 @@ message SearchSongsRequest {
 
 message SearchSongsResponse {
   repeated Song songs = 1;
+}
+
+// ─────────────────────────────────────────────────────
+// Home Page
+// ─────────────────────────────────────────────────────
+
+message GetHomePageRequest {}
+
+message GetHomePageResponse {
+  repeated HomePageSection sections = 1;
+}
+
+message HomePageSection {
+  string title = 1;
+  repeated HomePageContent contents = 2;
+}
+
+message HomePageContent {
+  string title = 1;
+  string playlist_id = 2;
+  repeated Thumbnail thumbnails = 3;
+  string description = 4;
 }
 
 

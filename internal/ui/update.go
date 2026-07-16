@@ -78,6 +78,49 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.SearchAndDownloadMusicMsg:
+		if msg.Err != nil {
+			slog.Error(msg.Err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		cmd := func() tea.Msg {
+			if msg.Player != nil {
+				return types.UpdatePlayedSeconds{
+					TrackID: msg.VideoID,
+				}
+			}
+			return nil
+		}
+		likedCmd := func() tea.Msg {
+			userToken := m.GetUserToken()
+			if userToken == nil {
+				return nil
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+			defer cancel()
+			resp, err := m.YtMusicClient.CheckUserSavedTrack(ctx, &musicpb.CheckUserSavedTrackRequest{
+				VideoId: msg.VideoID,
+			})
+			if err != nil {
+				return types.CheckUserSavedTrackResponseMsg{
+					Saved: false,
+					Err:   err,
+				}
+			}
+			var isSaved bool
+			if resp == nil {
+				isSaved = false
+			} else {
+				isSaved = resp.IsSaved
+			}
+			return types.CheckUserSavedTrackResponseMsg{
+				Saved: isSaved,
+				Err:   err,
+			}
+		}
+		cmds = append(cmds, cmd, likedCmd)
+		m.PlayerProcess = msg.Player
 	case types.CheckUserSavedTrackResponseMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -177,7 +220,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.PlayedSeconds = m.PlayerProcess.ByteCounterReader.CurrentSeconds()
-
 		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationMS / 1000
 		if (float64(totalDurationInSeconds) - (m.PlayedSeconds)) < 4 {
 			m.PlayedSeconds = 0
@@ -938,8 +980,6 @@ func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, shouldRemoveTheCacheFile bool) (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	trackName := selectedMusic.Track.Name
-	albumName := selectedMusic.Track.Album.Name
 	var artistNames []string
 	for _, artist := range selectedMusic.Track.Artists {
 		artistNames = append(artistNames, artist.Name)
@@ -955,25 +995,19 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, should
 			return m, alertCmd
 		}
 	}
-	durationSec := selectedMusic.Track.DurationMS / 1000
-	process, err := youtube.SearchAndDownloadMusic(trackName, albumName, artistNames, selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter, durationSec, m.CoreDepsPath)
-	if err != nil {
-		slog.Error(err.Error())
-		alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
-		return m, alertCmd
-	}
 
-	cmd := func() tea.Msg {
-		if process != nil {
-			return types.UpdatePlayedSeconds{
-				TrackID: selectedMusic.Track.ID,
-			}
+	cmd := youtube.SearchAndDownloadMusic(selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter, m.CoreDepsPath, func() (string, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		defer cancel()
+		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(ctx, &musicpb.GetVideoStreamURLRequest{
+			VideoId: selectedMusic.Track.ID,
+		})
+		if err != nil {
+			return "", err
 		}
-		return nil
-	}
-
+		return getStreamURLResponse.Url, nil
+	})
 	cmds = append(cmds, cmd)
-
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),
 		length:     int64(selectedMusic.Track.DurationMS),
@@ -1031,7 +1065,6 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, should
 
 	cmds = append(cmds, likedCmd)
 
-	m.PlayerProcess = process
 	m.SelectedTrack = &SelectedTrack{
 		isLiked:   false,
 		Track:     &selectedMusic,

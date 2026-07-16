@@ -2,7 +2,7 @@ from typing import cast
 from ytmusicapi import YTMusic, LikeStatus
 from yt_dlp import YoutubeDL
 
-from grpc_server.src.client.types import (
+from .types import (
     YTSong,
     YTLikedSongsResponse,
     YTHomeSection,

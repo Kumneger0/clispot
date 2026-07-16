@@ -9,8 +9,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 
 from grpc_server.gen import music_pb2, music_pb2_grpc
 
-from grpc_server.src.clispot.client import MusicClient
-from grpc_server.src.clispot.types import (
+from grpc_server.src.client.client import MusicClient
+from grpc_server.src.client.types import (
     YTSearchResult,
     YTSong,
     YTThumbnail,

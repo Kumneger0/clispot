@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 )
 
@@ -67,7 +66,7 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 				}
 			}
 		}
-	case types.Playlist, spotify.UserSavedTracksListItem:
+	case types.Playlist, types.UserSavedTracksListItem:
 		title = item.FilterValue()
 		if d.Model != nil {
 			playlist, ok := item.(types.Playlist)

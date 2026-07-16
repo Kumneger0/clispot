@@ -32,7 +32,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/kumneger0/clispot/internal/mpris"
-	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
 )
@@ -44,7 +43,7 @@ var (
 func newRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clispot",
-		Short: "spotify music player",
+		Short: "youtube music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			lockFilePath := filepath.Join(os.TempDir(), "clispot.lock")
 
@@ -268,27 +267,7 @@ func runRoot(cmd *cobra.Command) error {
 		}
 	}
 
-	token, err := spotify.ReadUserCredentials()
-
-	if err != nil {
-		slog.Error(err.Error())
-		token, _ = spotify.Authenticate()
-	}
-
-	if token == nil {
-		slog.Error("failed to get user token")
-		fmt.Println("we have failed to get your access token please open up an issue on our github page")
-		os.Exit(1)
-	}
-	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-		token, err = spotify.RefreshToken(token.RefreshToken)
-		if err != nil {
-			slog.Error(err.Error())
-			clispotConfigDir := config.GetConfigDir(runtime.GOOS)
-			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotConfigDir)
-			os.Exit(1)
-		}
-	}
+	// Authentication is handled by the gRPC server (Python side)
 
 	ins, messageChan, err := mpris.GetDbusInstance()
 
@@ -301,12 +280,8 @@ func runRoot(cmd *cobra.Command) error {
 
 	model := ui.Model{
 		GetUserToken: func() *types.UserTokenInfo {
-			token, err := validateToken(token)
-			if err != nil {
-				slog.Error(err.Error())
-				return nil
-			}
-			return token
+			// Auth is managed by the gRPC server
+			return &types.UserTokenInfo{}
 		},
 		FocusedOn:     ui.SideView,
 		DBusConn:      ins,
@@ -327,7 +302,7 @@ func runRoot(cmd *cobra.Command) error {
 		return nil
 	}
 
-	userSavedTracksListItem := spotify.UserSavedTracksListItem{
+	userSavedTracksListItem := types.UserSavedTracksListItem{
 		Name: "Liked songs",
 	}
 
@@ -404,22 +379,7 @@ func runRoot(cmd *cobra.Command) error {
 }
 
 func validateToken(token *types.UserTokenInfo) (*types.UserTokenInfo, error) {
-	if token.ExpiresAt > time.Now().Unix() {
-		return token, nil
-	}
-	if token.RefreshToken != "" {
-		token, err := spotify.RefreshToken(token.RefreshToken)
-		if err != nil {
-			slog.Error(err.Error())
-			return nil, err
-		}
-		return token, nil
-	}
-	//this means something went wrong re-authenticate
-	token, err := spotify.Authenticate()
-	if err != nil {
-		return nil, err
-	}
+	// Auth is managed by the gRPC server now
 	return token, nil
 }
 

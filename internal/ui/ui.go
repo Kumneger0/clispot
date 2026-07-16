@@ -95,7 +95,6 @@ type Model struct {
 	SearchQuery                              string
 	IsSearchLoading, IsLyricsServerInstalled bool
 	SearchResult                             *SpotifySearchResult
-	GetUserToken                             func() *types.UserTokenInfo
 	PaginationInfo                           *types.PaginationInfo
 	IsOnPagination                           bool
 	CoreDepsPath                             *youtube.CoreDepsPath
@@ -113,16 +112,13 @@ type SafeModel struct {
 
 func (m Model) Init() tea.Cmd {
 	var cmd tea.Cmd
-	userTokenInfo := m.GetUserToken()
-	if userTokenInfo != nil {
-		cmd = func() tea.Msg {
-			ctx, _ := context.WithCancel(context.Background())
-			followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
-			if err != nil {
-				return nil
-			}
-			return followedArtist
+	cmd = func() tea.Msg {
+		ctx, _ := context.WithCancel(context.Background())
+		followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
+		if err != nil {
+			return nil
 		}
+		return followedArtist
 	}
 	return tea.Batch(cmd, m.Alert.Init())
 }

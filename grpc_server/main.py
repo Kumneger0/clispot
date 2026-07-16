@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 
 from grpc_server.gen import music_pb2, music_pb2_grpc
+
 from grpc_server.src.clispot.client import MusicClient
 from grpc_server.src.clispot.types import (
     YTSearchResult,
@@ -381,7 +382,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 def serve() -> None:
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    servicer = MusicService("browser.json")
+    servicer = MusicService("grpc_server/browser.json")
     music_pb2_grpc.add_MusicServiceServicer_to_server(servicer, server) # type: ignore  # pyright: ignore[reportUnknownMemberType]
 
     _ = server.add_insecure_port("[::]:" + port)

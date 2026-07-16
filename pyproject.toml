@@ -20,4 +20,4 @@ dev = [
 
 [tool.basedpyright]
 typeCheckingMode = "strict"
-extraPaths = ["grpc_server", "grpc_server/gen"]
+extraPaths = ["grpc_server/gen"]

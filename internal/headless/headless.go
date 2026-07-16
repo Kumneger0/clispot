@@ -1,13 +1,6 @@
 package headless
 
 import (
-	"encoding/json"
-	"fmt"
-	"log/slog"
-	"net/http"
-	"sync"
-	"time"
-
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
 	"github.com/kumneger0/clispot/internal/youtube"
@@ -88,634 +81,638 @@ func NewMusicQueue() *Queue {
 }
 
 func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
-	musicQueue := NewMusicQueue()
-	var mqMu sync.Mutex
-
-	go func() {
-		if dbusMessageChan == nil {
-			return
-		}
-		for msg := range *dbusMessageChan {
-			mqMu.Lock()
-			switch msg.MessageType {
-			case types.NextTrack:
-				if len(musicQueue.Tracks) == 0 {
-					continue
-				}
-				nextTrackIndex := musicQueue.CurrentIndex + 1
-				if nextTrackIndex >= len(musicQueue.Tracks) {
-					nextTrackIndex = 0
-				}
-				musicQueue.CurrentIndex = nextTrackIndex
-				nextTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
-				if nextTrack != nil {
-					//the code this in this function is only excuted when user clicks on
-					// control button on his/her desktop environment
-					//which means it is skip
-					model, _ := m.PlaySelectedMusic(*nextTrack, true)
-					m.Model = &model
-				}
-			case types.PlayPause:
-				model, _ := m.HandleMusicPausePlay()
-				m.Model = &model
-			case types.PreviousTrack:
-				if len(musicQueue.Tracks) == 0 {
-					continue
-				}
-				prevTrackIndex := musicQueue.CurrentIndex - 1
-				if prevTrackIndex < 0 {
-					prevTrackIndex = len(musicQueue.Tracks) - 1
-				}
-				musicQueue.CurrentIndex = prevTrackIndex
-				prevTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
-				if prevTrack != nil {
-					model, _ := m.PlaySelectedMusic(*prevTrack, false)
-					m.Model = &model
-				}
-			}
-			mqMu.Unlock()
-		}
-	}()
-
-	mux := http.NewServeMux()
-	server := &http.Server{
-		Addr:    ":8282",
-		Handler: mux,
-	}
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "Application/json")
-		fmt.Fprintln(w, `{"message":"server is up"}`)
-	})
-
-	mux.HandleFunc("/library", func(w http.ResponseWriter, r *http.Request) {
-		m.Mu.RLock()
-		defer m.Mu.RUnlock()
-		w.Header().Set("Content-Type", "application/json")
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
-		userPlaylist, err := m.SpotifyClient.GetUserPlaylists(userToken.AccessToken)
-		if err != nil {
-			slog.Error("GetUserPlaylists failed: " + err.Error())
-			http.Error(w, `{"error":"failed to fetch user playlists"}`, http.StatusInternalServerError)
-			return
-		}
-		if userPlaylist == nil {
-			slog.Error("GetUserPlaylists returned nil playlist")
-			http.Error(w, `{"error":"no playlist data returned"}`, http.StatusInternalServerError)
-			return
-		}
-
-		followedArtists, err := m.SpotifyClient.GetFollowedArtist(userToken.AccessToken)
-		if err != nil {
-			slog.Error("GetFollowedArtist failed: " + err.Error())
-			http.Error(w, `{"error":"failed to fetch followed artists"}`, http.StatusInternalServerError)
-			return
-		}
-		if followedArtists == nil {
-			slog.Error("GetFollowedArtist returned nil")
-			http.Error(w, `{"error":"no artist data returned"}`, http.StatusInternalServerError)
-			return
-		}
-
-		albums, err := m.SpotifyClient.GetUserSavedAlbums(userToken.AccessToken)
-		if err != nil {
-			slog.Error("GetUserSavedAlbums failed: " + err.Error())
-			http.Error(w, `{"error":"failed to fetch albums"}`, http.StatusInternalServerError)
-			return
-		}
-		if albums == nil {
-			slog.Error("GetUserSavedAlbums returned nil")
-			http.Error(w, `{"error":"no album data returned"}`, http.StatusInternalServerError)
-			return
-		}
-
-		var savedAlbums []types.Album
-
-		for _, album := range albums.Items {
-			savedAlbums = append(savedAlbums, album.Album)
-		}
-
-		userLibrary := &UserLibrary{
-			Playlist:           userPlaylist.Items,
-			UserFollowedArtist: followedArtists.Artists.Items,
-			Album:              savedAlbums,
-		}
-
-		data, err := json.Marshal(userLibrary)
-		if err != nil {
-			slog.Error("json.Marshal failed: " + err.Error())
-			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
-		m.Mu.RLock()
-		defer m.Mu.RUnlock()
-		w.Header().Set("Content-Type", "application/json")
-
-		id := r.URL.Query().Get("id")
-		if id == "" {
-			http.Error(w, `{"error":"missing required query param: id"}`, http.StatusBadRequest)
-			return
-		}
-
-		queryType := r.URL.Query().Get("type")
-		if queryType == "" {
-			http.Error(w, `{"error":"missing required query param: type"}`, http.StatusBadRequest)
-			return
-		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
-		if TracksType(queryType) == FollowedArtist {
-			artistSongs, err := m.SpotifyClient.GetArtistsTopTrack(userToken.AccessToken, id)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to fetch artist tracks"}`, http.StatusInternalServerError)
-				return
-			}
-
-			var tracks []*types.PlaylistTrackObject
-			for _, track := range artistSongs.Tracks {
-				tracks = append(tracks, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   track,
-				})
-			}
-
-			resp := &TracksResponse{Tracks: tracks}
-			data, err := json.Marshal(resp)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-				return
-			}
-
-			w.WriteHeader(http.StatusOK)
-			_, err = w.Write(data)
-			if err != nil {
-				slog.Error(err.Error())
-			}
-			return
-		}
-
-		if TracksType(queryType) == PlaylistType {
-			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, id, nil)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
-				return
-			}
-
-			resp := &TracksResponse{Tracks: playlistItems.Items}
-			data, err := json.Marshal(resp)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-				return
-			}
-
-			w.WriteHeader(http.StatusOK)
-			_, err = w.Write(data)
-			if err != nil {
-				slog.Error(err.Error())
-			}
-			return
-		}
-
-		if TracksType(queryType) == LikedSongs {
-			savedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken, nil)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)
-				return
-			}
-
-			var tracks []*types.PlaylistTrackObject
-			for _, item := range savedTracks.Items {
-				tracks = append(tracks, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   item.Track,
-				})
-			}
-
-			resp := &TracksResponse{Tracks: tracks}
-			data, err := json.Marshal(resp)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-				return
-			}
-
-			w.WriteHeader(http.StatusOK)
-			_, err = w.Write(data)
-			if err != nil {
-				slog.Error(err.Error())
-			}
-			return
-		}
-
-		if TracksType(queryType) == AlbumTracks {
-			albumTracks, err := m.SpotifyClient.GetAlbumTracks(userToken.AccessToken, id)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to fetch album tracks"}`, http.StatusInternalServerError)
-				return
-			}
-
-			var trackObject []*types.PlaylistTrackObject
-			for _, item := range albumTracks.Items {
-				trackObject = append(trackObject, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   item,
-				})
-			}
-
-			resp := &TracksResponse{Tracks: trackObject}
-			data, err := json.Marshal(resp)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-				return
-			}
-
-			w.WriteHeader(http.StatusOK)
-			_, err = w.Write(data)
-			if err != nil {
-				slog.Error(err.Error())
-			}
-			return
-		}
-
-		http.Error(w, `{"error":"unknown type"}`, http.StatusBadRequest)
-	})
-
-	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
-		m.Mu.RLock()
-		defer m.Mu.RUnlock()
-		w.Header().Set("Content-Type", "application/json")
-
-		query := r.URL.Query().Get("q")
-
-		if query == "" {
-			slog.Error("query is empty")
-			http.Error(w, `{"error":"please provide a search query"}`, http.StatusBadRequest)
-			return
-		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
-		searchResults, err := m.SpotifyClient.GetSearchResults(userToken.AccessToken, query)
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)
-			return
-		}
-		data, err := json.Marshal(searchResults)
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("/player", func(w http.ResponseWriter, r *http.Request) {
-		m.Mu.Lock()
-		defer m.Mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		var action string
-		if m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying() {
-			action = "paused"
-		} else {
-			action = "play"
-		}
-		m.HandleMusicPausePlay()
-		resp := map[string]any{
-			"status": "ok",
-			"action": action,
-		}
-		data, _ := json.Marshal(resp)
-		w.WriteHeader(http.StatusOK)
-		_, err := w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("POST /player/play", func(w http.ResponseWriter, r *http.Request) {
-		m.Mu.Lock()
-		defer m.Mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-
-		if r.Method != http.MethodPost {
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-			return
-		}
-
-		if r.Body == nil {
-			http.Error(w, `{"error":"request body required"}`, http.StatusBadRequest)
-			return
-		}
-
-		defer r.Body.Close()
-
-		var reqBody PlayRequestBodyType
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			slog.Error("failed to decode body: " + err.Error())
-			http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
-			return
-		}
-
-		if reqBody.TrackID == "" {
-			http.Error(w, `{"error":"trackID is required"}`, http.StatusBadRequest)
-			return
-		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
-		model, _ := m.HandleMusicPausePlay()
-		m.Model = &model
-
-		if reqBody.Queue != nil {
-			musicQueue = reqBody.Queue
-		}
-
-		var trackObject *types.PlaylistTrackObject
-
-		if reqBody.Queue != nil {
-			if reqBody.Queue.CurrentIndex >= 0 && reqBody.Queue.CurrentIndex < len(reqBody.Queue.Tracks) {
-				trackObject = reqBody.Queue.Tracks[reqBody.Queue.CurrentIndex]
-			}
-		}
-
-		if trackObject == nil {
-			track, err := m.SpotifyClient.GetTrack(userToken.AccessToken, reqBody.TrackID)
-			if err != nil {
-				slog.Error(err.Error())
-				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
-				return
-			}
-
-			if track == nil {
-				slog.Error("track is nil")
-				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
-				return
-			}
-
-			trackObject = &types.PlaylistTrackObject{
-				Track:   *track,
-				AddedAt: "",
-				AddedBy: nil,
-				IsLocal: false,
-			}
-		}
-
-		model, _ = m.PlaySelectedMusic(*trackObject, reqBody.IsSkip)
-		m.Model = &model
-		resp := map[string]any{
-			"status":  "ok",
-			"message": "track is now playing",
-			"track": map[string]any{
-				"id":      reqBody.TrackID,
-				"name":    trackObject.Track.Name,
-				"album":   trackObject.Track.Album.Name,
-				"artists": trackObject.Track.Artists,
-			},
-		}
-
-		data, err := json.Marshal(resp)
-		if err != nil {
-			slog.Error("failed to encode response: " + err.Error())
-			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("GET /player/queue", func(w http.ResponseWriter, r *http.Request) {
-		mqMu.Lock()
-		defer mqMu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		data, err := json.Marshal(musicQueue)
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("POST /player/queue/add", func(w http.ResponseWriter, r *http.Request) {
-		mqMu.Lock()
-		defer mqMu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		var reqBody AddTrackToQueue
-		err := json.NewDecoder(r.Body).Decode(&reqBody)
-		if err != nil {
-			slog.Error("failed to decode request body: " + err.Error())
-			fmt.Println("failed to add to queue", reqBody)
-			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
-			return
-		}
-
-		musicQueue.AddTrack(&reqBody.Track, reqBody.Index)
-
-		w.WriteHeader(http.StatusOK)
-		data, err := json.Marshal(map[string]any{
-			"status":  "success",
-			"message": "track added to queue",
-		})
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
-			return
-		}
-		_, err = w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("DELETE /player/queue/remove", func(w http.ResponseWriter, r *http.Request) {
-		mqMu.Lock()
-		defer mqMu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		var reqBody RemoveTrackFromQueue
-		err := json.NewDecoder(r.Body).Decode(&reqBody)
-		if err != nil {
-			slog.Error("failed to decode request body: " + err.Error())
-			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
-			return
-		}
-		var index int = -1
-		for i, track := range musicQueue.Tracks {
-			if track.Track.ID == reqBody.Track.Track.ID {
-				index = i
-				break
-			}
-		}
-		if index == -1 {
-			http.Error(w, `{"message":"track not found", status:"error"}`, http.StatusNotFound)
-			return
-		}
-
-		musicQueue.RemoveTrack(index)
-		// Adjust CurrentIndex if necessary
-		if index < musicQueue.CurrentIndex {
-			musicQueue.CurrentIndex--
-		} else if index == musicQueue.CurrentIndex && musicQueue.CurrentIndex >= len(musicQueue.Tracks) {
-			// If we removed the current track and it was the last one, adjust to the new last track
-			if len(musicQueue.Tracks) > 0 {
-				musicQueue.CurrentIndex = len(musicQueue.Tracks) - 1
-			} else {
-				musicQueue.CurrentIndex = 0
-			}
-		}
-
-		w.WriteHeader(http.StatusOK)
-		data, err := json.Marshal(map[string]any{
-			"status":  "success",
-			"message": "track removed from queue",
-		})
-		if err != nil {
-			slog.Error(err.Error())
-			return
-		}
-
-		_, err = w.Write(data)
-		if err != nil {
-			slog.Error(err.Error())
-		}
-	})
-
-	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		ctx := r.Context()
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(w, "event: connected\ndata: ok\n\n")
-		flusher.Flush()
-
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		msgCh := make(chan youtube.ScanFuncArgs, 10)
-
-		go func() {
-			youtube.ReadYtDlpErrReader(m.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
-				msgCh <- args
-			})
-		}()
-
-		for {
-			select {
-			case msg := <-msgCh:
-				m.Mu.Lock()
-				message := SSEMessage{
-					Player: nil,
-					YtDlp: &struct {
-						Message string            "json:\"message\""
-						LogType youtube.YtDlpLogs "json:\"logType\""
-					}{
-						Message: msg.Line,
-						LogType: msg.LogType,
-					},
-				}
-				response, _ := json.Marshal(message)
-				fmt.Fprintf(w, "data: %s\n\n", response)
-				flusher.Flush()
-				m.Mu.Unlock()
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				m.Mu.RLock()
-				if m.PlayerProcess != nil && m.PlayerProcess.ByteCounterReader != nil {
-					currentIndex := musicQueue.CurrentIndex
-					isPlaying := m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying()
-					seconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
-
-					message := SSEMessage{
-						Player: &struct {
-							IsPlaying     bool    "json:\"isPlaying\""
-							CurrentIndex  int     "json:\"currentIndex\""
-							SecondsPlayed float64 "json:\"secondsPlayed\""
-						}{
-							IsPlaying:     isPlaying,
-							CurrentIndex:  currentIndex,
-							SecondsPlayed: seconds,
-						},
-						YtDlp: nil,
-					}
-
-					msg, _ := json.Marshal(message)
-					fmt.Fprintf(w, "data: %s\n\n", msg)
-				}
-				m.Mu.RUnlock()
-				flusher.Flush()
-			}
-		}
-	})
-
-	fmt.Println("Server started at http://localhost:8282")
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error(err.Error())
-		fmt.Printf("❌ Server error: %v\n", err)
-	}
 }
+
+// func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
+// 	musicQueue := NewMusicQueue()
+// 	var mqMu sync.Mutex
+
+// 	go func() {
+// 		if dbusMessageChan == nil {
+// 			return
+// 		}
+// 		for msg := range *dbusMessageChan {
+// 			mqMu.Lock()
+// 			switch msg.MessageType {
+// 			case types.NextTrack:
+// 				if len(musicQueue.Tracks) == 0 {
+// 					continue
+// 				}
+// 				nextTrackIndex := musicQueue.CurrentIndex + 1
+// 				if nextTrackIndex >= len(musicQueue.Tracks) {
+// 					nextTrackIndex = 0
+// 				}
+// 				musicQueue.CurrentIndex = nextTrackIndex
+// 				nextTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
+// 				if nextTrack != nil {
+// 					//the code this in this function is only excuted when user clicks on
+// 					// control button on his/her desktop environment
+// 					//which means it is skip
+// 					model, _ := m.PlaySelectedMusic(*nextTrack, true)
+// 					m.Model = &model
+// 				}
+// 			case types.PlayPause:
+// 				model, _ := m.HandleMusicPausePlay()
+// 				m.Model = &model
+// 			case types.PreviousTrack:
+// 				if len(musicQueue.Tracks) == 0 {
+// 					continue
+// 				}
+// 				prevTrackIndex := musicQueue.CurrentIndex - 1
+// 				if prevTrackIndex < 0 {
+// 					prevTrackIndex = len(musicQueue.Tracks) - 1
+// 				}
+// 				musicQueue.CurrentIndex = prevTrackIndex
+// 				prevTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
+// 				if prevTrack != nil {
+// 					model, _ := m.PlaySelectedMusic(*prevTrack, false)
+// 					m.Model = &model
+// 				}
+// 			}
+// 			mqMu.Unlock()
+// 		}
+// 	}()
+
+// 	mux := http.NewServeMux()
+// 	server := &http.Server{
+// 		Addr:    ":8282",
+// 		Handler: mux,
+// 	}
+
+// 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+// 		w.Header().Add("Content-Type", "Application/json")
+// 		fmt.Fprintln(w, `{"message":"server is up"}`)
+// 	})
+
+// 	mux.HandleFunc("/library", func(w http.ResponseWriter, r *http.Request) {
+// 		m.Mu.RLock()
+// 		defer m.Mu.RUnlock()
+// 		w.Header().Set("Content-Type", "application/json")
+
+// 		userToken := m.GetUserToken()
+// 		if userToken == nil {
+// 			slog.Error("failed to get userToken")
+// 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+// 			return
+// 		}
+
+// 		ctx, _ := context.WithTimeout(context.Background(), time.Minute*2)
+// 		userPlaylist, err := m.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
+// 		if err != nil {
+// 			slog.Error("GetUserPlaylists failed: " + err.Error())
+// 			http.Error(w, `{"error":"failed to fetch user playlists"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+// 		if userPlaylist == nil {
+// 			slog.Error("GetUserPlaylists returned nil playlist")
+// 			http.Error(w, `{"error":"no playlist data returned"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+// 		ctx, _ = context.WithTimeout(context.Background(), time.Minute*3)
+// 		followedArtists, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
+// 		if err != nil {
+// 			slog.Error("GetFollowedArtist failed: " + err.Error())
+// 			http.Error(w, `{"error":"failed to fetch followed artists"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+// 		if followedArtists == nil {
+// 			slog.Error("GetFollowedArtist returned nil")
+// 			http.Error(w, `{"error":"no artist data returned"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+
+// 		albums, err := m.SpotifyClient.GetUserSavedAlbums(userToken.AccessToken)
+// 		if err != nil {
+// 			slog.Error("GetUserSavedAlbums failed: " + err.Error())
+// 			http.Error(w, `{"error":"failed to fetch albums"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+// 		if albums == nil {
+// 			slog.Error("GetUserSavedAlbums returned nil")
+// 			http.Error(w, `{"error":"no album data returned"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+
+// 		var savedAlbums []types.Album
+
+// 		for _, album := range albums.Items {
+// 			savedAlbums = append(savedAlbums, album.Album)
+// 		}
+
+// 		userLibrary := &UserLibrary{
+// 			Playlist:           userPlaylist.Items,
+// 			UserFollowedArtist: followedArtists.Artists.Items,
+// 			Album:              savedAlbums,
+// 		}
+
+// 		data, err := json.Marshal(userLibrary)
+// 		if err != nil {
+// 			slog.Error("json.Marshal failed: " + err.Error())
+// 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+
+// 		w.WriteHeader(http.StatusOK)
+// 		_, err = w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
+// 		m.Mu.RLock()
+// 		defer m.Mu.RUnlock()
+// 		w.Header().Set("Content-Type", "application/json")
+
+// 		id := r.URL.Query().Get("id")
+// 		if id == "" {
+// 			http.Error(w, `{"error":"missing required query param: id"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		queryType := r.URL.Query().Get("type")
+// 		if queryType == "" {
+// 			http.Error(w, `{"error":"missing required query param: type"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		userToken := m.GetUserToken()
+// 		if userToken == nil {
+// 			slog.Error("failed to get userToken")
+// 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+// 			return
+// 		}
+
+// 		if TracksType(queryType) == FollowedArtist {
+// 			artistSongs, err := m.SpotifyClient.GetArtistsTopTrack(userToken.AccessToken, id)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to fetch artist tracks"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			var tracks []*types.PlaylistTrackObject
+// 			for _, track := range artistSongs.Tracks {
+// 				tracks = append(tracks, &types.PlaylistTrackObject{
+// 					AddedAt: "",
+// 					AddedBy: nil,
+// 					IsLocal: false,
+// 					Track:   track,
+// 				})
+// 			}
+
+// 			resp := &TracksResponse{Tracks: tracks}
+// 			data, err := json.Marshal(resp)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			w.WriteHeader(http.StatusOK)
+// 			_, err = w.Write(data)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 			}
+// 			return
+// 		}
+
+// 		if TracksType(queryType) == PlaylistType {
+// 			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, id, nil)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			resp := &TracksResponse{Tracks: playlistItems.Items}
+// 			data, err := json.Marshal(resp)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			w.WriteHeader(http.StatusOK)
+// 			_, err = w.Write(data)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 			}
+// 			return
+// 		}
+
+// 		if TracksType(queryType) == LikedSongs {
+// 			savedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken, nil)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			var tracks []*types.PlaylistTrackObject
+// 			for _, item := range savedTracks.Items {
+// 				tracks = append(tracks, &types.PlaylistTrackObject{
+// 					AddedAt: "",
+// 					AddedBy: nil,
+// 					IsLocal: false,
+// 					Track:   item.Track,
+// 				})
+// 			}
+
+// 			resp := &TracksResponse{Tracks: tracks}
+// 			data, err := json.Marshal(resp)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			w.WriteHeader(http.StatusOK)
+// 			_, err = w.Write(data)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 			}
+// 			return
+// 		}
+
+// 		if TracksType(queryType) == AlbumTracks {
+// 			albumTracks, err := m.SpotifyClient.GetAlbumTracks(userToken.AccessToken, id)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to fetch album tracks"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			var trackObject []*types.PlaylistTrackObject
+// 			for _, item := range albumTracks.Items {
+// 				trackObject = append(trackObject, &types.PlaylistTrackObject{
+// 					AddedAt: "",
+// 					AddedBy: nil,
+// 					IsLocal: false,
+// 					Track:   item,
+// 				})
+// 			}
+
+// 			resp := &TracksResponse{Tracks: trackObject}
+// 			data, err := json.Marshal(resp)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			w.WriteHeader(http.StatusOK)
+// 			_, err = w.Write(data)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 			}
+// 			return
+// 		}
+
+// 		http.Error(w, `{"error":"unknown type"}`, http.StatusBadRequest)
+// 	})
+
+// 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+// 		m.Mu.RLock()
+// 		defer m.Mu.RUnlock()
+// 		w.Header().Set("Content-Type", "application/json")
+
+// 		query := r.URL.Query().Get("q")
+
+// 		if query == "" {
+// 			slog.Error("query is empty")
+// 			http.Error(w, `{"error":"please provide a search query"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		userToken := m.GetUserToken()
+// 		if userToken == nil {
+// 			slog.Error("failed to get userToken")
+// 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+// 			return
+// 		}
+
+// 		searchResults, err := m.SpotifyClient.GetSearchResults(userToken.AccessToken, query)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+// 		data, err := json.Marshal(searchResults)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+
+// 		w.WriteHeader(http.StatusOK)
+// 		_, err = w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("/player", func(w http.ResponseWriter, r *http.Request) {
+// 		m.Mu.Lock()
+// 		defer m.Mu.Unlock()
+// 		w.Header().Set("Content-Type", "application/json")
+// 		var action string
+// 		if m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying() {
+// 			action = "paused"
+// 		} else {
+// 			action = "play"
+// 		}
+// 		m.HandleMusicPausePlay()
+// 		resp := map[string]any{
+// 			"status": "ok",
+// 			"action": action,
+// 		}
+// 		data, _ := json.Marshal(resp)
+// 		w.WriteHeader(http.StatusOK)
+// 		_, err := w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("POST /player/play", func(w http.ResponseWriter, r *http.Request) {
+// 		m.Mu.Lock()
+// 		defer m.Mu.Unlock()
+// 		w.Header().Set("Content-Type", "application/json")
+
+// 		if r.Method != http.MethodPost {
+// 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+// 			return
+// 		}
+
+// 		if r.Body == nil {
+// 			http.Error(w, `{"error":"request body required"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		defer r.Body.Close()
+
+// 		var reqBody PlayRequestBodyType
+// 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+// 			slog.Error("failed to decode body: " + err.Error())
+// 			http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		if reqBody.TrackID == "" {
+// 			http.Error(w, `{"error":"trackID is required"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		userToken := m.GetUserToken()
+// 		if userToken == nil {
+// 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+// 			return
+// 		}
+
+// 		model, _ := m.HandleMusicPausePlay()
+// 		m.Model = &model
+
+// 		if reqBody.Queue != nil {
+// 			musicQueue = reqBody.Queue
+// 		}
+
+// 		var trackObject *types.PlaylistTrackObject
+
+// 		if reqBody.Queue != nil {
+// 			if reqBody.Queue.CurrentIndex >= 0 && reqBody.Queue.CurrentIndex < len(reqBody.Queue.Tracks) {
+// 				trackObject = reqBody.Queue.Tracks[reqBody.Queue.CurrentIndex]
+// 			}
+// 		}
+
+// 		if trackObject == nil {
+// 			track, err := m.SpotifyClient.GetTrack(userToken.AccessToken, reqBody.TrackID)
+// 			if err != nil {
+// 				slog.Error(err.Error())
+// 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			if track == nil {
+// 				slog.Error("track is nil")
+// 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
+// 				return
+// 			}
+
+// 			trackObject = &types.PlaylistTrackObject{
+// 				Track:   *track,
+// 				AddedAt: "",
+// 				AddedBy: nil,
+// 				IsLocal: false,
+// 			}
+// 		}
+
+// 		model, _ = m.PlaySelectedMusic(*trackObject, reqBody.IsSkip)
+// 		m.Model = &model
+// 		resp := map[string]any{
+// 			"status":  "ok",
+// 			"message": "track is now playing",
+// 			"track": map[string]any{
+// 				"id":      reqBody.TrackID,
+// 				"name":    trackObject.Track.Name,
+// 				"album":   trackObject.Track.Album.Name,
+// 				"artists": trackObject.Track.Artists,
+// 			},
+// 		}
+
+// 		data, err := json.Marshal(resp)
+// 		if err != nil {
+// 			slog.Error("failed to encode response: " + err.Error())
+// 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+// 			return
+// 		}
+
+// 		w.WriteHeader(http.StatusOK)
+// 		_, err = w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("GET /player/queue", func(w http.ResponseWriter, r *http.Request) {
+// 		mqMu.Lock()
+// 		defer mqMu.Unlock()
+// 		w.Header().Set("Content-Type", "application/json")
+// 		data, err := json.Marshal(musicQueue)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
+// 			return
+// 		}
+// 		w.WriteHeader(http.StatusOK)
+// 		_, err = w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("POST /player/queue/add", func(w http.ResponseWriter, r *http.Request) {
+// 		mqMu.Lock()
+// 		defer mqMu.Unlock()
+// 		w.Header().Set("Content-Type", "application/json")
+// 		var reqBody AddTrackToQueue
+// 		err := json.NewDecoder(r.Body).Decode(&reqBody)
+// 		if err != nil {
+// 			slog.Error("failed to decode request body: " + err.Error())
+// 			fmt.Println("failed to add to queue", reqBody)
+// 			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
+// 			return
+// 		}
+
+// 		musicQueue.AddTrack(&reqBody.Track, reqBody.Index)
+
+// 		w.WriteHeader(http.StatusOK)
+// 		data, err := json.Marshal(map[string]any{
+// 			"status":  "success",
+// 			"message": "track added to queue",
+// 		})
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
+// 			return
+// 		}
+// 		_, err = w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("DELETE /player/queue/remove", func(w http.ResponseWriter, r *http.Request) {
+// 		mqMu.Lock()
+// 		defer mqMu.Unlock()
+// 		w.Header().Set("Content-Type", "application/json")
+// 		var reqBody RemoveTrackFromQueue
+// 		err := json.NewDecoder(r.Body).Decode(&reqBody)
+// 		if err != nil {
+// 			slog.Error("failed to decode request body: " + err.Error())
+// 			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
+// 			return
+// 		}
+// 		var index int = -1
+// 		for i, track := range musicQueue.Tracks {
+// 			if track.Track.ID == reqBody.Track.Track.ID {
+// 				index = i
+// 				break
+// 			}
+// 		}
+// 		if index == -1 {
+// 			http.Error(w, `{"message":"track not found", status:"error"}`, http.StatusNotFound)
+// 			return
+// 		}
+
+// 		musicQueue.RemoveTrack(index)
+// 		// Adjust CurrentIndex if necessary
+// 		if index < musicQueue.CurrentIndex {
+// 			musicQueue.CurrentIndex--
+// 		} else if index == musicQueue.CurrentIndex && musicQueue.CurrentIndex >= len(musicQueue.Tracks) {
+// 			// If we removed the current track and it was the last one, adjust to the new last track
+// 			if len(musicQueue.Tracks) > 0 {
+// 				musicQueue.CurrentIndex = len(musicQueue.Tracks) - 1
+// 			} else {
+// 				musicQueue.CurrentIndex = 0
+// 			}
+// 		}
+
+// 		w.WriteHeader(http.StatusOK)
+// 		data, err := json.Marshal(map[string]any{
+// 			"status":  "success",
+// 			"message": "track removed from queue",
+// 		})
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 			return
+// 		}
+
+// 		_, err = w.Write(data)
+// 		if err != nil {
+// 			slog.Error(err.Error())
+// 		}
+// 	})
+
+// 	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+// 		w.Header().Set("Content-Type", "text/event-stream")
+// 		w.Header().Set("Cache-Control", "no-cache")
+// 		w.Header().Set("Connection", "keep-alive")
+
+// 		ctx := r.Context()
+
+// 		flusher, ok := w.(http.Flusher)
+// 		if !ok {
+// 			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+// 			return
+// 		}
+
+// 		fmt.Fprintf(w, "event: connected\ndata: ok\n\n")
+// 		flusher.Flush()
+
+// 		ticker := time.NewTicker(1 * time.Second)
+// 		defer ticker.Stop()
+
+// 		msgCh := make(chan youtube.ScanFuncArgs, 10)
+
+// 		go func() {
+// 			youtube.ReadYtDlpErrReader(m.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
+// 				msgCh <- args
+// 			})
+// 		}()
+
+// 		for {
+// 			select {
+// 			case msg := <-msgCh:
+// 				m.Mu.Lock()
+// 				message := SSEMessage{
+// 					Player: nil,
+// 					YtDlp: &struct {
+// 						Message string            "json:\"message\""
+// 						LogType youtube.YtDlpLogs "json:\"logType\""
+// 					}{
+// 						Message: msg.Line,
+// 						LogType: msg.LogType,
+// 					},
+// 				}
+// 				response, _ := json.Marshal(message)
+// 				fmt.Fprintf(w, "data: %s\n\n", response)
+// 				flusher.Flush()
+// 				m.Mu.Unlock()
+// 			case <-ctx.Done():
+// 				return
+// 			case <-ticker.C:
+// 				m.Mu.RLock()
+// 				if m.PlayerProcess != nil && m.PlayerProcess.ByteCounterReader != nil {
+// 					currentIndex := musicQueue.CurrentIndex
+// 					isPlaying := m.PlayerProcess != nil && m.PlayerProcess.OtoPlayer.IsPlaying()
+// 					seconds := m.PlayerProcess.ByteCounterReader.CurrentSeconds()
+
+// 					message := SSEMessage{
+// 						Player: &struct {
+// 							IsPlaying     bool    "json:\"isPlaying\""
+// 							CurrentIndex  int     "json:\"currentIndex\""
+// 							SecondsPlayed float64 "json:\"secondsPlayed\""
+// 						}{
+// 							IsPlaying:     isPlaying,
+// 							CurrentIndex:  currentIndex,
+// 							SecondsPlayed: seconds,
+// 						},
+// 						YtDlp: nil,
+// 					}
+
+// 					msg, _ := json.Marshal(message)
+// 					fmt.Fprintf(w, "data: %s\n\n", msg)
+// 				}
+// 				m.Mu.RUnlock()
+// 				flusher.Flush()
+// 			}
+// 		}
+// 	})
+
+// 	fmt.Println("Server started at http://localhost:8282")
+// 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+// 		slog.Error(err.Error())
+// 		fmt.Printf("❌ Server error: %v\n", err)
+// 	}
+// }

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
-	"github.com/kumneger0/clispot/internal/spotify"
+	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
 	"go.dalton.dog/bubbleup"
@@ -84,8 +85,9 @@ type Model struct {
 	PlayerSectionHeight int
 	Search              textinput.Model
 	MusicQueueList      *MusicQueueList
-	SpotifyClient       *spotify.APIClientImpl
-	DBusConn            *Instance
+	YtMusicClient       musicpb.MusicServiceClient
+	// SpotifyClient       *spotify.APIClientImpl
+	DBusConn *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
@@ -114,7 +116,8 @@ func (m Model) Init() tea.Cmd {
 	userTokenInfo := m.GetUserToken()
 	if userTokenInfo != nil {
 		cmd = func() tea.Msg {
-			followedArtist, err := m.SpotifyClient.GetFollowedArtist(userTokenInfo.AccessToken)
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+			followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
 			if err != nil {
 				return nil
 			}

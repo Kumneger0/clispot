@@ -269,12 +269,7 @@ func runRoot(cmd *cobra.Command) error {
 
 	client, conn := ytMusicClient.GetYtMusicClient()
 	defer conn.Close()
-
 	model := ui.Model{
-		GetUserToken: func() *types.UserTokenInfo {
-			// Auth is managed by the gRPC server
-			return &types.UserTokenInfo{}
-		},
 		FocusedOn:     ui.SideView,
 		DBusConn:      ins,
 		MainViewMode:  ui.NormalMode,
@@ -311,12 +306,6 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	var items []list.Item
-	// if userPlayList != nil {
-	// 	for _, item := range userPlayList.Items {
-	// 		items = append(items, item)
-	// 	}
-	// }
-
 	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 
@@ -371,15 +360,9 @@ func runRoot(cmd *cobra.Command) error {
 	return nil
 }
 
-func validateToken(token *types.UserTokenInfo) (*types.UserTokenInfo, error) {
-	// Auth is managed by the gRPC server now
-	return token, nil
-}
-
 type CoreDependency string
 
 const (
-	YtDlp   CoreDependency = "yt-dlp"
 	FFmpeg  CoreDependency = "ffmpeg"
 	FFprobe CoreDependency = "ffprobe"
 )
@@ -393,19 +376,15 @@ type DebsCheckResult struct {
 func doAllDepsInstalled() []DebsCheckResult {
 	ffmpegName := "ffmpeg"
 	ffprobeName := "ffprobe"
-	ytdlpName := "yt-dlp"
 	if runtime.GOOS == "windows" {
 		ffmpegName = "ffmpeg.exe"
 		ffprobeName = "ffprobe.exe"
-		ytdlpName = "yt-dlp.exe"
 	}
 	debsInCacheDirCheckPath := map[CoreDependency]string{
 		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffmpegName),
 		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffprobeName),
-		YtDlp:   filepath.Join(config.GetCacheDir(runtime.GOOS), ytdlpName),
 	}
-
-	toolNames := []CoreDependency{YtDlp, FFmpeg, FFprobe}
+	toolNames := []CoreDependency{FFmpeg, FFprobe}
 	results := []DebsCheckResult{}
 	for _, toolName := range toolNames {
 		pathFound, err := exec.LookPath(string(toolName))

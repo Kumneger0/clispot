@@ -93,10 +93,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return nil
 		}
 		likedCmd := func() tea.Msg {
-			userToken := m.GetUserToken()
-			if userToken == nil {
-				return nil
-			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			resp, err := m.YtMusicClient.CheckUserSavedTrack(ctx, &musicpb.CheckUserSavedTrackRequest{
@@ -347,22 +343,17 @@ func (m Model) handlePagination(listModel *list.Model, ShouldAppendQueue bool, c
 	}
 	totalItems := listModel.Items()
 	if *currentIndex+5 >= len(totalItems) && m.PaginationInfo != nil && m.PaginationInfo.Next != "" {
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get user access token")
-		} else {
-			if m.IsOnPagination {
-				return m, nil
-			}
-			m.IsOnPagination = true
-			var paginationInfo *types.PaginationInfo
-			if m.FocusedOn == QueueList && m.MusicQueueList != nil && m.MusicQueueList.PaginationInfo != nil {
-				paginationInfo = m.MusicQueueList.PaginationInfo
-			} else {
-				paginationInfo = m.PaginationInfo
-			}
-			return m, getNextPageItems(&m, paginationInfo, ShouldAppendQueue)
+		if m.IsOnPagination {
+			return m, nil
 		}
+		m.IsOnPagination = true
+		var paginationInfo *types.PaginationInfo
+		if m.FocusedOn == QueueList && m.MusicQueueList != nil && m.MusicQueueList.PaginationInfo != nil {
+			paginationInfo = m.MusicQueueList.PaginationInfo
+		} else {
+			paginationInfo = m.PaginationInfo
+		}
+		return m, getNextPageItems(&m, paginationInfo, ShouldAppendQueue)
 	}
 	return m, nil
 }
@@ -394,11 +385,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m.getMusicLyrics(m.SelectedTrack)
 	case "l":
 		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-			userToken := m.GetUserToken()
-			if userToken == nil {
-				slog.Error("m.GetUserToken is return nil ")
-				return m, nil
-			}
 			cmd := func() tea.Msg {
 				var shouldRemove bool
 				if m.SelectedTrack.isLiked {
@@ -467,11 +453,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 }
 
 func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppendQueue bool) tea.Cmd {
-	userToken := m.GetUserToken()
-	if userToken == nil {
-		slog.Error("failed to get user access token")
-		return nil
-	}
 	switch paginationInfo.NextPageURLType {
 	case types.NextPageURLTypePlaylistTracks:
 		return func() tea.Msg {
@@ -753,12 +734,6 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic, false)
 	}
-	userToken := m.GetUserToken()
-
-	if userToken == nil {
-		slog.Error("nil user token")
-		return m, nil
-	}
 
 	if m.FocusedOn == SearchBar {
 		query := m.Search.Value()
@@ -835,22 +810,17 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 	}
 
 	if m.FocusedOn == SideView {
-		if userToken == nil {
-			slog.Error("failed to get user access token")
-			return m, nil
-		}
-
 		m.PaginationInfo = nil
 		loadingCmd := SendLoadingCmd()
 		switch selectedItem := m.Playlist.SelectedItem().(type) {
 		case types.Playlist:
-			cmd := m.getPlaylistItems(userToken.AccessToken, selectedItem.ID)
+			cmd := m.getPlaylistItems(selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
 		case types.Artist:
-			cmd := m.getArtistTracks(userToken.AccessToken, selectedItem.ID)
+			cmd := m.getArtistTracks(selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
 		case types.UserSavedTracksListItem:
-			cmd := m.getUserSavedTracks(userToken.AccessToken)
+			cmd := m.getUserSavedTracks()
 			return m, tea.Batch(loadingCmd, cmd)
 		}
 	}
@@ -861,7 +831,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			return m, nil
 		}
 		loadingCmd := SendLoadingCmd()
-		cmd := m.getArtistTracks(userToken.AccessToken, selectedItem.ID)
+		cmd := m.getArtistTracks(selectedItem.ID)
 		m.MainViewMode = NormalMode
 		m.FocusedOn = MainView
 		updateDelegate(&m)
@@ -875,7 +845,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		}
 
 		loadingCmd := SendLoadingCmd()
-		cmd := m.getPlaylistItems(userToken.AccessToken, selectedItem.ID)
+		cmd := m.getPlaylistItems(selectedItem.ID)
 		m.MainViewMode = NormalMode
 		m.FocusedOn = MainView
 		updateDelegate(&m)
@@ -892,7 +862,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
+func (m Model) getArtistTracks(artistID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -919,7 +889,7 @@ func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 	}
 }
 
-func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
+func (m Model) getUserSavedTracks() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -947,7 +917,7 @@ func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 	}
 }
 
-func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
+func (m Model) getPlaylistItems(playlistID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

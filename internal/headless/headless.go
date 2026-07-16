@@ -154,14 +154,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		m.Mu.RLock()
 		defer m.Mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -256,14 +248,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"error":"missing required query param: type"}`, http.StatusBadRequest)
 			return
 		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -406,14 +390,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"error":"please provide a search query"}`, http.StatusBadRequest)
 			return
 		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -528,12 +504,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 
 		if reqBody.TrackID == "" {
 			http.Error(w, `{"error":"trackID is required"}`, http.StatusBadRequest)
-			return
-		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 

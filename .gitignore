@@ -12,4 +12,16 @@ logs.json
 todo.md
 *.debug.txt
 mock-ui.txt
-.idea/*
+.idea/*# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+browser.json
+gen/

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,10 +18,12 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
 	"github.com/kumneger0/clispot/internal/youtube"
+	ytMusicClient "github.com/kumneger0/clispot/internal/yt-music-client"
 	"go.dalton.dog/bubbleup"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -293,6 +296,9 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
+	client, conn := ytMusicClient.GetYtMusicClient()
+	defer conn.Close()
+
 	model := ui.Model{
 		GetUserToken: func() *types.UserTokenInfo {
 			token, err := validateToken(token)
@@ -305,7 +311,7 @@ func runRoot(cmd *cobra.Command) error {
 		FocusedOn:     ui.SideView,
 		DBusConn:      ins,
 		MainViewMode:  ui.NormalMode,
-		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL(), nil),
+		YtMusicClient: client,
 		CoreDepsPath:  coreDepsPath,
 	}
 
@@ -325,7 +331,8 @@ func runRoot(cmd *cobra.Command) error {
 		Name: "Liked songs",
 	}
 
-	userPlayList, err := model.SpotifyClient.GetUserPlaylists(token.AccessToken)
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+	userPlayList, err := model.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
 	if err != nil {
 		slog.Error(err.Error())
 		fmt.Fprintln(os.Stdout, err)
@@ -336,11 +343,11 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	var items []list.Item
-	if userPlayList != nil {
-		for _, item := range userPlayList.Items {
-			items = append(items, item)
-		}
-	}
+	// if userPlayList != nil {
+	// 	for _, item := range userPlayList.Items {
+	// 		items = append(items, item)
+	// 	}
+	// }
 
 	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)

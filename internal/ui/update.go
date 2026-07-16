@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"log/slog"
 	"math/rand"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/godbus/dbus/v5"
+	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/command"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/lyrics"
@@ -366,7 +368,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				} else {
 					shouldRemove = false
 				}
-				err := m.SpotifyClient.SaveRemoveTrackForCurrentUser(userToken.AccessToken, []string{m.SelectedTrack.Track.Track.ID}, shouldRemove)
+				//TODO: will check it later on
+				ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+				_, err := m.YtMusicClient.SaveRemoveTrack(ctx, &musicpb.SaveRemoveTrackRequest{
+					VideoIds: []string{},
+					IsRemove: true,
+				})
+
 				if err != nil {
 					slog.Error(err.Error())
 				}
@@ -430,7 +438,8 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 	switch paginationInfo.NextPageURLType {
 	case types.NextPageURLTypePlaylistTracks:
 		return func() tea.Msg {
-			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, paginationInfo.NextItemID, &paginationInfo.Next)
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+			_, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{})
 			if err != nil {
 				return types.UpdatePlaylistMsg{
 					Playlist: nil,
@@ -438,52 +447,57 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 				}
 			}
 
-			if playlistItems.Next != "" {
-				paginationInfo.Next = playlistItems.Next
-			}
+			// if playlistItems.Next != "" {
+			// 	paginationInfo.Next = playlistItems.Next
+			// }
 
-			return types.UpdatePlaylistMsg{
-				Playlist:          playlistItems.Items,
-				Err:               nil,
-				ShouldAppend:      true,
-				PaginationInfo:    paginationInfo,
-				ShouldAppendQueue: ShouldAppendQueue,
-			}
+			return types.UpdatePlaylistMsg{}
+
+			// return types.UpdatePlaylistMsg{
+			// 	Playlist:          playlistItems.Items,
+			// 	Err:               nil,
+			// 	ShouldAppend:      true,
+			// 	PaginationInfo:    paginationInfo,
+			// 	ShouldAppendQueue: ShouldAppendQueue,
+			// }
 		}
 	case types.NextPageURLTypeUserSavedItems:
 		return func() tea.Msg {
-			userSavedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken, &paginationInfo.Next)
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+			_, err := m.YtMusicClient.GetUserSavedTracks(ctx, &musicpb.GetUserSavedTracksRequest{})
 			if err != nil {
 				return types.UpdatePlaylistMsg{
 					Playlist: nil,
 					Err:      err,
 				}
 			}
-			var playlistItems []*types.PlaylistTrackObject
-			for _, item := range userSavedTracks.Items {
-				playlistItems = append(playlistItems, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   item.Track,
-				})
-			}
-			var paginationInfo *types.PaginationInfo
-			if userSavedTracks.Next != "" {
-				paginationInfo = &types.PaginationInfo{
-					Next:            userSavedTracks.Next,
-					NextPageURLType: types.NextPageURLTypeUserSavedItems,
-					NextItemID:      "",
-				}
-			}
 
-			return types.UpdatePlaylistMsg{
-				Playlist:          playlistItems,
-				Err:               nil,
-				ShouldAppend:      true,
-				PaginationInfo:    paginationInfo,
-				ShouldAppendQueue: ShouldAppendQueue,
-			}
+			return types.UpdatePlaylistMsg{}
+			// var playlistItems []*types.PlaylistTrackObject
+			// for _, item := range userSavedTracks.Items {
+			// 	playlistItems = append(playlistItems, &types.PlaylistTrackObject{
+			// 		AddedAt: "",
+			// 		AddedBy: nil,
+			// 		IsLocal: false,
+			// 		Track:   item.Track,
+			// 	})
+			// }
+			// var paginationInfo *types.PaginationInfo
+			// if userSavedTracks.Next != "" {
+			// 	paginationInfo = &types.PaginationInfo{
+			// 		Next:            userSavedTracks.Next,
+			// 		NextPageURLType: types.NextPageURLTypeUserSavedItems,
+			// 		NextItemID:      "",
+			// 	}
+			// }
+
+			// return types.UpdatePlaylistMsg{
+			// 	Playlist:          playlistItems,
+			// 	Err:               nil,
+			// 	ShouldAppend:      true,
+			// 	PaginationInfo:    paginationInfo,
+			// 	ShouldAppendQueue: ShouldAppendQueue,
+			// }
 		}
 	}
 	return nil
@@ -722,11 +736,20 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 		loadingCmd := SendLoadingCmd()
 		searchingCmd := func() tea.Msg {
-			searchResult, err := m.SpotifyClient.GetSearchResults(userToken.AccessToken, query)
-			return types.SpotifySearchResultMsg{
-				Result: searchResult,
-				Err:    err,
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+
+			_, err := m.YtMusicClient.GetSearchResults(ctx, &musicpb.GetSearchResultsRequest{
+				Query: query,
+			})
+
+			if err != nil {
+				slog.Error(err.Error())
 			}
+			return types.SpotifySearchResultMsg{}
+			// return types.SpotifySearchResultMsg{
+			// 	Result: searchResult,
+			// 	Err:    err,
+			// }
 		}
 		m.SearchQuery = query
 		return m, tea.Batch(loadingCmd, searchingCmd)
@@ -792,7 +815,10 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 	return func() tea.Msg {
-		artistSongs, err := m.SpotifyClient.GetArtistsTopTrack(accessToken, artistID)
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+		_, err := m.YtMusicClient.GetArtistTopTracks(ctx, &musicpb.GetArtistTopTracksRequest{
+			ChannelId: artistID,
+		})
 		if err != nil {
 			slog.Error(err.Error())
 			return types.UpdatePlaylistMsg{
@@ -800,25 +826,27 @@ func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 				Err:      err,
 			}
 		}
-		var tracks []*types.PlaylistTrackObject
-		for _, track := range artistSongs.Tracks {
-			tracks = append(tracks, &types.PlaylistTrackObject{
-				AddedAt: "",
-				AddedBy: nil,
-				IsLocal: false,
-				Track:   track,
-			})
-		}
-		return types.UpdatePlaylistMsg{
-			Playlist: tracks,
-			Err:      err,
-		}
+		return types.UpdatePlaylistMsg{}
+		// var tracks []*types.PlaylistTrackObject
+		// for _, track := range artistSongs.Tracks {
+		// 	tracks = append(tracks, &types.PlaylistTrackObject{
+		// 		AddedAt: "",
+		// 		AddedBy: nil,
+		// 		IsLocal: false,
+		// 		Track:   track,
+		// 	})
+		// }
+		// return types.UpdatePlaylistMsg{
+		// 	Playlist: tracks,
+		// 	Err:      err,
+		// }
 	}
 }
 
 func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 	return func() tea.Msg {
-		savedTracks, err := m.SpotifyClient.GetUserSavedTracks(accessToken, nil)
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+		_, err := m.YtMusicClient.GetUserSavedTracks(ctx, &musicpb.GetUserSavedTracksRequest{})
 		if err != nil {
 			slog.Error(err.Error())
 			return types.UpdatePlaylistMsg{
@@ -826,34 +854,38 @@ func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 				Err:      err,
 			}
 		}
-		var tracks []*types.PlaylistTrackObject
-		for _, track := range savedTracks.Items {
-			tracks = append(tracks, &types.PlaylistTrackObject{
-				AddedAt: "",
-				AddedBy: nil,
-				IsLocal: false,
-				Track:   track.Track,
-			})
-		}
-		var paginationInfo *types.PaginationInfo
-		if savedTracks.Next != "" {
-			paginationInfo = &types.PaginationInfo{
-				Next:            savedTracks.Next,
-				NextPageURLType: types.NextPageURLTypeUserSavedItems,
-			}
-		}
-		return types.UpdatePlaylistMsg{
-			Playlist:       tracks,
-			Err:            err,
-			PaginationInfo: paginationInfo,
-			ShouldAppend:   false,
-		}
+		return types.UpdatePlaylistMsg{}
+		// var tracks []*types.PlaylistTrackObject
+		// for _, track := range savedTracks.Items {
+		// 	tracks = append(tracks, &types.PlaylistTrackObject{
+		// 		AddedAt: "",
+		// 		AddedBy: nil,
+		// 		IsLocal: false,
+		// 		Track:   track.Track,
+		// 	})
+		// }
+		// var paginationInfo *types.PaginationInfo
+		// if savedTracks.Next != "" {
+		// 	paginationInfo = &types.PaginationInfo{
+		// 		Next:            savedTracks.Next,
+		// 		NextPageURLType: types.NextPageURLTypeUserSavedItems,
+		// 	}
+		// }
+		// return types.UpdatePlaylistMsg{
+		// 	Playlist:       tracks,
+		// 	Err:            err,
+		// 	PaginationInfo: paginationInfo,
+		// 	ShouldAppend:   false,
+		// }
 	}
 }
 
 func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 	return func() tea.Msg {
-		playlistItems, err := m.SpotifyClient.GetPlaylistItems(accessToken, playlistID, nil)
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+		_, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
+			PlaylistId: playlistID,
+		})
 		if err != nil {
 			slog.Error(err.Error())
 			return types.UpdatePlaylistMsg{
@@ -861,20 +893,21 @@ func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 				Err:      err,
 			}
 		}
-		var paginationInfo *types.PaginationInfo
-		if playlistItems.Next != "" {
-			paginationInfo = &types.PaginationInfo{
-				Next:            playlistItems.Next,
-				NextPageURLType: types.NextPageURLTypePlaylistTracks,
-				NextItemID:      playlistID,
-			}
-		}
-		return types.UpdatePlaylistMsg{
-			Playlist:       playlistItems.Items,
-			Err:            err,
-			PaginationInfo: paginationInfo,
-			ShouldAppend:   false,
-		}
+		return types.UpdatePlaylistMsg{}
+		// var paginationInfo *types.PaginationInfo
+		// if playlistItems.Next != "" {
+		// 	paginationInfo = &types.PaginationInfo{
+		// 		Next:            playlistItems.Next,
+		// 		NextPageURLType: types.NextPageURLTypePlaylistTracks,
+		// 		NextItemID:      playlistID,
+		// 	}
+		// }
+		// return types.UpdatePlaylistMsg{
+		// 	Playlist:       playlistItems.Items,
+		// 	Err:            err,
+		// 	PaginationInfo: paginationInfo,
+		// 	ShouldAppend:   false,
+		// }
 	}
 }
 
@@ -948,23 +981,28 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, should
 		if userToken == nil {
 			return nil
 		}
-		response, err := m.SpotifyClient.CheckUserSavedTrack(userToken.AccessToken, selectedMusic.Track.ID)
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+
+		_, err := m.YtMusicClient.CheckUserSavedTrack(ctx, &musicpb.CheckUserSavedTrackRequest{
+			VideoId: selectedMusic.Track.ID,
+		})
 		if err != nil {
 			return types.CheckUserSavedTrackResponseMsg{
 				Saved: false,
 				Err:   err,
 			}
 		}
-		var isSaved bool
-		if len(response) > 0 {
-			isSaved = response[0]
-		} else {
-			isSaved = false
-		}
-		return types.CheckUserSavedTrackResponseMsg{
-			Saved: isSaved,
-			Err:   err,
-		}
+		return types.CheckUserSavedTrackResponseMsg{}
+		// var isSaved bool
+		// if len(response) > 0 {
+		// 	isSaved = response[0]
+		// } else {
+		// 	isSaved = false
+		// }
+		// return types.CheckUserSavedTrackResponseMsg{
+		// 	Saved: isSaved,
+		// 	Err:   err,
+		// }
 	}
 
 	cmds = append(cmds, likedCmd)

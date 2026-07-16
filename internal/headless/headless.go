@@ -162,7 +162,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		userPlaylist, err := m.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
@@ -264,7 +264,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		if TracksType(queryType) == FollowedArtist {
@@ -414,7 +414,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		searchResults, err := m.YtMusicClient.GetSearchResults(ctx, &musicpb.GetSearchResultsRequest{Query: query})
@@ -553,7 +553,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if trackObject == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
 			track, err := m.YtMusicClient.GetTrack(ctx, &musicpb.GetTrackRequest{VideoId: reqBody.TrackID})

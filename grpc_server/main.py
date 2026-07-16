@@ -228,7 +228,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     @override
     def GetSearchResults(self, request: music_pb2.GetSearchResultsRequest, context: grpc.ServicerContext) -> music_pb2.GetSearchResultsResponse:
-        limit = request.limit if request.limit > 0 else 20
+        limit = request.limit if request.limit > 0 else 50
         filter_val: YTSearchFilter | None = None
         if request.filter in ("songs", "videos", "albums", "artists", "playlists"):
             filter_val = request.filter

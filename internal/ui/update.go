@@ -97,7 +97,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if userToken == nil {
 				return nil
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			resp, err := m.YtMusicClient.CheckUserSavedTrack(ctx, &musicpb.CheckUserSavedTrackRequest{
 				VideoId: msg.VideoID,
@@ -406,8 +406,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 				} else {
 					shouldRemove = false
 				}
-				//TODO: will check it later on
-				ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+				ctx, _ := context.WithCancel(context.Background())
 				_, err := m.YtMusicClient.SaveRemoveTrack(ctx, &musicpb.SaveRemoveTrackRequest{
 					VideoIds: []string{},
 					IsRemove: true,
@@ -476,7 +475,7 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 	switch paginationInfo.NextPageURLType {
 	case types.NextPageURLTypePlaylistTracks:
 		return func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
 				PlaylistId: paginationInfo.NextItemID,
@@ -506,7 +505,7 @@ func getNextPageItems(m *Model, paginationInfo *types.PaginationInfo, ShouldAppe
 		}
 	case types.NextPageURLTypeUserSavedItems:
 		return func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			userSavedTracks, err := m.YtMusicClient.GetUserSavedTracks(ctx, &musicpb.GetUserSavedTracksRequest{
 				Limit: 100,
@@ -770,7 +769,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 		loadingCmd := SendLoadingCmd()
 		searchingCmd := func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
 			searchResults, err := m.YtMusicClient.GetSearchResults(ctx, &musicpb.GetSearchResultsRequest{
@@ -895,7 +894,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 
 func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		artistSongs, err := m.YtMusicClient.GetArtistTopTracks(ctx, &musicpb.GetArtistTopTracksRequest{
 			ChannelId: artistID,
@@ -922,7 +921,7 @@ func (m Model) getArtistTracks(accessToken, artistID string) tea.Cmd {
 
 func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		savedTracks, err := m.YtMusicClient.GetUserSavedTracks(ctx, &musicpb.GetUserSavedTracksRequest{
 			Limit: 100,
@@ -950,7 +949,7 @@ func (m Model) getUserSavedTracks(accessToken string) tea.Cmd {
 
 func (m Model) getPlaylistItems(accessToken, playlistID string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
 			PlaylistId: playlistID,
@@ -997,7 +996,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, should
 	}
 
 	cmd := youtube.SearchAndDownloadMusic(selectedMusic.Track.ID, m.PlayerProcess == nil, m.YtDlpErrWriter, m.CoreDepsPath, func() (string, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(ctx, &musicpb.GetVideoStreamURLRequest{
 			VideoId: selectedMusic.Track.ID,
@@ -1034,37 +1033,6 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, should
 			slog.Error(dbusErr.Error())
 		}
 	}
-	likedCmd := func() tea.Msg {
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			return nil
-		}
-		ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
-
-		_, err := m.YtMusicClient.CheckUserSavedTrack(ctx, &musicpb.CheckUserSavedTrackRequest{
-			VideoId: selectedMusic.Track.ID,
-		})
-		if err != nil {
-			return types.CheckUserSavedTrackResponseMsg{
-				Saved: false,
-				Err:   err,
-			}
-		}
-		return types.CheckUserSavedTrackResponseMsg{}
-		// var isSaved bool
-		// if len(response) > 0 {
-		// 	isSaved = response[0]
-		// } else {
-		// 	isSaved = false
-		// }
-		// return types.CheckUserSavedTrackResponseMsg{
-		// 	Saved: isSaved,
-		// 	Err:   err,
-		// }
-	}
-
-	cmds = append(cmds, likedCmd)
-
 	m.SelectedTrack = &SelectedTrack{
 		isLiked:   false,
 		Track:     &selectedMusic,

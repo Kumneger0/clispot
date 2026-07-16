@@ -298,7 +298,8 @@ func runRoot(cmd *cobra.Command) error {
 		Name: "Liked songs",
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	userPlayList, err := model.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
 	if err != nil {
 		slog.Error(err.Error())

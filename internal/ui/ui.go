@@ -116,7 +116,7 @@ func (m Model) Init() tea.Cmd {
 	userTokenInfo := m.GetUserToken()
 	if userTokenInfo != nil {
 		cmd = func() tea.Msg {
-			ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
+			ctx, _ := context.WithCancel(context.Background())
 			followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
 			if err != nil {
 				return nil

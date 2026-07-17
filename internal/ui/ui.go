@@ -113,7 +113,8 @@ type SafeModel struct {
 func (m Model) Init() tea.Cmd {
 	var cmd tea.Cmd
 	cmd = func() tea.Msg {
-		ctx, _ := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
 		if err != nil {
 			return nil

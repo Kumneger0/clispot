@@ -66,6 +66,21 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 				}
 			}
 		}
+	case types.HomeSidebarItem:
+		title = item.FilterValue()
+		if d.Model != nil && d.Model.FocusedOn == SideView {
+			isSelected = m.Index() == index
+		}
+	case types.HomePageContentItem:
+		title = item.FilterValue()
+		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
+			isSelected = m.Index() == index
+		}
+	case types.HomePageSectionItem:
+		title = item.FilterValue()
+		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
+			isSelected = m.Index() == index
+		}
 	case types.Playlist, types.UserSavedTracksListItem:
 		title = item.FilterValue()
 		if d.Model != nil {
@@ -187,4 +202,24 @@ func renderPlayerControls(isLyricsServerInstalled bool) string {
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Top, controls...)
 	return row
+}
+
+func renderHomePage(m *Model, width, height int) string {
+	if m.HomePageData == nil || len(m.HomePageData.Sections) == 0 {
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")).
+			Render("Loading homepage...")
+	}
+
+	return m.HomePageList.View()
+}
+
+func truncateText(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	if maxLen <= 3 {
+		return text[:maxLen]
+	}
+	return text[:maxLen-3] + "..."
 }

@@ -17,7 +17,8 @@ from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRela
     YTArtist,
     YTLibraryAlbum,
     YTLibraryPlaylist,
-    YTSearchFilter
+    YTSearchFilter,
+    YTHomeSection
 )
 
 def _to_proto_thumbnail(thumb: YTThumbnail) -> music_pb2.Thumbnail:
@@ -383,6 +384,33 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         return music_pb2.GetVideoStreamURLResponse(
             url=stream_url
         )
+
+    @override
+    def GetHomePage(self, request: music_pb2.GetHomePageRequest, context: grpc.ServicerContext) -> music_pb2.GetHomePageResponse:
+        home_sections: list[YTHomeSection] = self.client.get_home()
+        
+        response = music_pb2.GetHomePageResponse()
+        
+        for section in home_sections:
+            section_msg = music_pb2.HomePageSection(
+                title=section.get("title") or ""
+            )
+            
+            for content in section.get("contents", []):
+                content_msg = music_pb2.HomePageContent(
+                    title=content.get("title") or "",
+                    playlist_id=content.get("playlistId") or "",
+                    description=content.get("description") or ""
+                )
+                
+                for thumbnail in content.get("thumbnails", []):
+                    content_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                
+                section_msg.contents.append(content_msg)
+            
+            response.sections.append(section_msg)
+        
+        return response
 
 def serve() -> None:
     port = "50051"

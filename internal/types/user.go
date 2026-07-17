@@ -21,3 +21,42 @@ func (u UserSavedTracksListItem) FilterValue() string {
 func (u UserSavedTracksListItem) Title() string {
 	return u.Name
 }
+
+type HomeSidebarItem struct {
+	Name string
+}
+
+func (h HomeSidebarItem) FilterValue() string {
+	return h.Name
+}
+
+func (h HomeSidebarItem) Title() string {
+	return h.Name
+}
+
+type HomePageSectionItem struct {
+	SectionTitle string
+	Index        int
+}
+
+func (h HomePageSectionItem) FilterValue() string {
+	return h.SectionTitle
+}
+
+func (h HomePageSectionItem) Title() string {
+	return h.SectionTitle
+}
+
+type HomePageContentItem struct {
+	ItemTitle   string
+	PlaylistID  string
+	Description string
+}
+
+func (h HomePageContentItem) FilterValue() string {
+	return h.ItemTitle
+}
+
+func (h HomePageContentItem) Title() string {
+	return h.ItemTitle
+}

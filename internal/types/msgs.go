@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/ebitengine/oto/v3"
+	musicpb "github.com/kumneger0/clispot/gen"
 )
 
 type NextPageURLType string
@@ -88,4 +89,18 @@ func (b *ByteCounterReader) Read(p []byte) (int, error) {
 
 func (b *ByteCounterReader) CurrentSeconds() float64 {
 	return float64(b.total) / 176400.0
+}
+
+type HomePageResponseMsg struct {
+	Response *musicpb.GetHomePageResponse
+	Err      error
+}
+
+type UpdateHomePageContentMsg struct {
+	Item HomePageSectionItem
+}
+
+type PlaylistDetailMsg struct {
+	Playlist *musicpb.GetPlaylistItemsResponse
+	Err      error
 }

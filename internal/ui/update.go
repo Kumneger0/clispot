@@ -28,8 +28,8 @@ type MusicMetadata struct {
 	length     int64
 }
 
-func getMusicMetadata(music MusicMetadata) map[string]interface{} {
-	var metadata = map[string]interface{}{
+func getMusicMetadata(music MusicMetadata) map[string]any {
+	var metadata = map[string]any{
 		"mpris:trackid": "/org/mpris/MediaPlayer2/" + music.title,
 		"mpris:length":  music.length,
 		"xesam:title":   music.title,
@@ -78,6 +78,43 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.PlaylistDetailMsg:
+		if msg.Err != nil {
+			slog.Error(msg.Err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		var tracks []*types.PlaylistTrackObject
+		for _, track := range msg.Playlist.Tracks {
+			tracks = append(tracks, &types.PlaylistTrackObject{
+				Track: types.MapSongToTrack(track),
+			})
+		}
+		cmd := func() tea.Msg {
+			return types.UpdatePlaylistMsg{
+				Playlist: tracks,
+			}
+		}
+		return m, cmd
+	case types.UpdateHomePageContentMsg:
+		var items []list.Item
+		contents := m.HomePageData.Sections[msg.Item.Index]
+		if contents == nil {
+			return m, nil
+		}
+		for _, content := range contents.Contents {
+			items = append(items, types.HomePageContentItem{
+				ItemTitle:   content.Title,
+				PlaylistID:  content.PlaylistId,
+				Description: content.Description,
+			})
+		}
+		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, 10, 20)
+		removeListDefaults(&m.HomePageList)
+		m.HomePageList.Title = msg.Item.Title()
+		m.HomePageViewMode = HomePageContentView
+		m.MainViewMode = HomePageMode
+		return m, nil
 	case types.SearchAndDownloadMusicMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -157,8 +194,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 			m.IsSearchLoading = false
 		}
+	case types.HomePageResponseMsg:
+		if msg.Err != nil {
+			slog.Error(msg.Err.Error())
+			return m, nil
+		}
+		m.HomePageData = msg.Response
+		var items []list.Item
+		for i, section := range msg.Response.Sections {
+			items = append(items, types.HomePageSectionItem{
+				SectionTitle: section.Title,
+				Index:        i,
+			})
+		}
+
+		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, 10, 20)
+		removeListDefaults(&m.HomePageList)
+		m.HomePageList.Title = "Home"
+		m.HomePageViewMode = HomePageSectionView
+		m.MainViewMode = HomePageMode
+		return m, nil
 	case *types.UserFollowedArtistResponse:
 		playlist := m.Playlist.Items()
+		homeItem := types.HomeSidebarItem{Name: "🏠 Home"}
+		likedMusicItem := types.UserSavedTracksListItem{Name: "❤️ Liked Music"}
+		playlist = append([]list.Item{homeItem, likedMusicItem}, playlist...)
 		for _, artist := range msg.Artists.Items {
 			playlist = append(playlist, artist)
 		}
@@ -364,11 +424,41 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.FocusedOn != MainView && m.FocusedOn != QueueList {
 			return m, nil
 		}
+		if m.MainViewMode == HomePageMode {
+			var cmd tea.Cmd
+			m.HomePageList, cmd = m.HomePageList.Update(msg)
+			return m, cmd
+		}
 		listModel := getListItemForMusicToChoose(&m, m.FocusedOn)
 		return m.handlePagination(listModel, m.FocusedOn == QueueList, nil)
+	case "up", "k":
+		if m.FocusedOn != MainView && m.FocusedOn != QueueList {
+			return m, nil
+		}
+		if m.MainViewMode == HomePageMode {
+			var cmd tea.Cmd
+			m.HomePageList, cmd = m.HomePageList.Update(msg)
+			return m, cmd
+		}
+		return m, nil
 	case "ctrl+k":
 		m.FocusedOn = SearchBar
 		return m, m.Search.Focus()
+	case "escape":
+		if m.MainViewMode == HomePageMode && m.HomePageViewMode == HomePageContentView {
+			var items []list.Item
+			for i, section := range m.HomePageData.Sections {
+				items = append(items, types.HomePageSectionItem{
+					SectionTitle: section.Title,
+					Index:        i,
+				})
+			}
+			m.HomePageList = list.New(items, CustomDelegate{Model: &m}, 10, 20)
+			removeListDefaults(&m.HomePageList)
+			m.HomePageList.Title = "Home"
+			m.HomePageViewMode = HomePageSectionView
+			return m, nil
+		}
 	case "a":
 		return m.addMusicToQueue()
 	case "r":
@@ -575,9 +665,25 @@ func (m Model) handleMusicChange(isForward, shouldRemoveTheCacheFile bool) (Mode
 		return m, nil
 	}
 
+	var validItems []list.Item
+	for _, item := range m.MusicQueueList.Model.Items() {
+		if _, ok := item.(types.PlaylistTrackObject); ok {
+			validItems = append(validItems, item)
+		}
+	}
+	if len(validItems) != len(m.MusicQueueList.Model.Items()) {
+		cmd := m.MusicQueueList.Model.SetItems(validItems)
+		m.MusicQueueList.Model.Select(0)
+		return m, cmd
+	}
+
 	var currentlySelectedMusicIndex int
 	for index, track := range m.MusicQueueList.Model.Items() {
-		if track.(types.PlaylistTrackObject).Track.ID == m.SelectedTrack.Track.Track.ID {
+		playlistTrack, ok := track.(types.PlaylistTrackObject)
+		if !ok {
+			continue
+		}
+		if playlistTrack.Track.ID == m.SelectedTrack.Track.Track.ID {
 			currentlySelectedMusicIndex = index
 			break
 		}
@@ -596,9 +702,24 @@ func (m Model) handleMusicChange(isForward, shouldRemoveTheCacheFile bool) (Mode
 		nextTrackIndex = currentlySelectedMusicIndex - 1
 	}
 
-	musicToPlay, ok := m.MusicQueueList.Model.Items()[nextTrackIndex].(types.PlaylistTrackObject)
-	if !ok {
-		slog.Error("failed to cast SelectedPlayListItems to PlaylistTrackObject")
+	// Find the next valid PlaylistTrackObject
+	var musicToPlay types.PlaylistTrackObject
+	var found bool
+	for i := 0; i < len(m.MusicQueueList.Model.Items()); i++ {
+		// Calculate index with wrapping
+		idx := (nextTrackIndex + i) % len(m.MusicQueueList.Model.Items())
+		item := m.MusicQueueList.Model.Items()[idx]
+		playlistTrack, ok := item.(types.PlaylistTrackObject)
+		if ok {
+			musicToPlay = playlistTrack
+			nextTrackIndex = idx
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		slog.Error("no valid PlaylistTrackObject found in music queue")
 		return m, nil
 	}
 	m.MusicQueueList.Model.Select(nextTrackIndex)
@@ -626,6 +747,11 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Don't add non-track items to queue
+	if _, ok := itemToAdd.(types.PlaylistTrackObject); !ok {
+		return m, nil
+	}
+
 	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
 		currentlyPlayingTrackID = m.SelectedTrack.Track.Track.ID
 	}
@@ -633,7 +759,11 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	var musicQueue = m.MusicQueueList.Items()
 
 	if len(musicQueue) == 0 {
-		return m, m.MusicQueueList.SetItems([]list.Item{itemToAdd})
+		var validItems []list.Item
+		if _, ok := itemToAdd.(types.PlaylistTrackObject); ok {
+			validItems = append(validItems, itemToAdd)
+		}
+		return m, m.MusicQueueList.SetItems(validItems)
 	}
 
 	item, ok := itemToAdd.(types.PlaylistTrackObject)
@@ -645,8 +775,15 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 	item.IsItFromQueue = true
 	itemToAdd = item
 
+	var validQueueItems []list.Item
+	for _, queueItem := range m.MusicQueueList.Items() {
+		if _, ok := queueItem.(types.PlaylistTrackObject); ok {
+			validQueueItems = append(validQueueItems, queueItem)
+		}
+	}
+
 	var currentlyPlayingTrackIndex int
-	for index, item := range m.MusicQueueList.Items() {
+	for index, item := range validQueueItems {
 		playlistTrackObject, ok := item.(types.PlaylistTrackObject)
 		if !ok {
 			continue
@@ -656,8 +793,8 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		}
 	}
 
-	var itemsAfterCurrentlyPlayingTrack = m.MusicQueueList.Items()[currentlyPlayingTrackIndex+1:]
-	var itemsBeforeCurrentlyPlayingTrack = m.MusicQueueList.Items()[:currentlyPlayingTrackIndex+1]
+	var itemsAfterCurrentlyPlayingTrack = validQueueItems[currentlyPlayingTrackIndex+1:]
+	var itemsBeforeCurrentlyPlayingTrack = validQueueItems[:currentlyPlayingTrackIndex+1]
 	cmd := m.MusicQueueList.SetItems(append(itemsBeforeCurrentlyPlayingTrack, append([]list.Item{itemToAdd}, itemsAfterCurrentlyPlayingTrack...)...))
 	return m, cmd
 }
@@ -701,7 +838,12 @@ func (m Model) HandleMusicPausePlay() (Model, tea.Cmd) {
 }
 
 func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
-	if focusedOn == MainView {
+	if focusedOn == MainView && m.MainViewMode == HomePageMode {
+		if m.HomePageViewMode == HomePageSectionView {
+			return &m.HomePageList
+		}
+	}
+	if focusedOn == MainView && m.MainViewMode == NormalMode {
 		return &m.SelectedPlayListItems
 	}
 	if focusedOn == QueueList && m.MusicQueueList != nil {
@@ -712,17 +854,60 @@ func getListItemForMusicToChoose(m *Model, focusedOn FocusedOn) *list.Model {
 
 func (m Model) handleEnterKey() (Model, tea.Cmd) {
 	if m.FocusedOn == MainView || m.FocusedOn == QueueList {
+		if m.MainViewMode == HomePageMode && m.HomePageViewMode == HomePageSectionView {
+			listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)
+			if listItemToChooseMusicFrom == nil {
+				return m, nil
+			}
+			item, ok := listItemToChooseMusicFrom.SelectedItem().(types.HomePageSectionItem)
+			if !ok {
+				return m, nil
+			}
+			cmd := func() tea.Msg {
+				return types.UpdateHomePageContentMsg{
+					Item: item,
+				}
+			}
+			return m, cmd
+		}
+
+		if m.MainViewMode == HomePageMode && m.HomePageViewMode == HomePageContentView {
+			item, ok := m.HomePageList.SelectedItem().(types.HomePageContentItem)
+			if !ok {
+				return m, nil
+			}
+			playlistDetailMsg := func() tea.Msg {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{
+					PlaylistId: item.PlaylistID,
+				})
+				return types.PlaylistDetailMsg{
+					Playlist: playlistItems,
+					Err:      err,
+				}
+			}
+			return m, playlistDetailMsg
+		}
+
 		listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)
+		if listItemToChooseMusicFrom == nil {
+			return m, nil
+		}
+
 		selectedMusic, ok := listItemToChooseMusicFrom.SelectedItem().(types.PlaylistTrackObject)
 		if !ok {
-			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, "failed to cast SelectedPlayListItems to PlaylistTrackObject")
-			return m, alertCmd
+			return m, nil
 		}
 
 		var items []list.Item
 		for _, item := range m.SelectedPlayListItems.Items() {
+			playlistTrack, ok := item.(types.PlaylistTrackObject)
+			if !ok {
+				continue
+			}
 			playlistItem := types.PlaylistTrackObject{
-				Track:         item.(types.PlaylistTrackObject).Track,
+				Track:         playlistTrack.Track,
 				IsItFromQueue: true,
 			}
 			items = append(items, playlistItem)
@@ -813,6 +998,11 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		m.PaginationInfo = nil
 		loadingCmd := SendLoadingCmd()
 		switch selectedItem := m.Playlist.SelectedItem().(type) {
+		case types.HomeSidebarItem:
+			m.MainViewMode = HomePageMode
+			m.FocusedOn = MainView
+			updateDelegate(&m)
+			return m, nil
 		case types.Playlist:
 			cmd := m.getPlaylistItems(selectedItem.ID)
 			return m, tea.Batch(loadingCmd, cmd)
@@ -822,6 +1012,45 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		case types.UserSavedTracksListItem:
 			cmd := m.getUserSavedTracks()
 			return m, tea.Batch(loadingCmd, cmd)
+		}
+	}
+	if m.FocusedOn == MainView && m.MainViewMode == HomePageMode {
+		if m.HomePageViewMode == HomePageSectionView {
+			selectedItem, ok := m.HomePageList.SelectedItem().(types.HomePageSectionItem)
+			if !ok {
+				slog.Error("failed to cast the selected item to types.HomePageSectionItem")
+				return m, nil
+			}
+			if m.HomePageData != nil && selectedItem.Index < len(m.HomePageData.Sections) {
+				section := m.HomePageData.Sections[selectedItem.Index]
+				var items []list.Item
+				for _, content := range section.Contents {
+					items = append(items, types.HomePageContentItem{
+						ItemTitle:   content.Title,
+						PlaylistID:  content.PlaylistId,
+						Description: content.Description,
+					})
+				}
+				m.HomePageList = list.New(items, CustomDelegate{Model: &m}, 10, 20)
+				removeListDefaults(&m.HomePageList)
+				m.HomePageList.Title = section.Title
+				m.HomePageViewMode = HomePageContentView
+				return m, nil
+			}
+		} else if m.HomePageViewMode == HomePageContentView {
+			selectedItem, ok := m.HomePageList.SelectedItem().(types.HomePageContentItem)
+			if !ok {
+				slog.Error("failed to cast the selected item to types.HomePageContentItem")
+				return m, nil
+			}
+			if selectedItem.PlaylistID != "" {
+				loadingCmd := SendLoadingCmd()
+				cmd := m.getPlaylistItems(selectedItem.PlaylistID)
+				m.MainViewMode = NormalMode
+				m.FocusedOn = MainView
+				updateDelegate(&m)
+				return m, tea.Batch(cmd, loadingCmd)
+			}
 		}
 	}
 	if m.FocusedOn == SearchResultArtist {
@@ -1078,6 +1307,7 @@ func updateDelegate(m *Model) {
 		m.MusicQueueList.SetDelegate(CustomDelegate{Model: m})
 	}
 	m.Playlist.SetDelegate(CustomDelegate{Model: m})
+	m.HomePageList.SetDelegate(CustomDelegate{Model: m})
 
 	if m.SearchResult != nil {
 		m.SearchResult.Tracks.SetDelegate(CustomDelegate{Model: m})

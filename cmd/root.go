@@ -272,7 +272,7 @@ func runRoot(cmd *cobra.Command) error {
 	model := ui.Model{
 		FocusedOn:     ui.SideView,
 		DBusConn:      ins,
-		MainViewMode:  ui.NormalMode,
+		MainViewMode:  ui.HomePageMode,
 		YtMusicClient: client,
 		CoreDepsPath:  coreDepsPath,
 	}
@@ -289,12 +289,15 @@ func runRoot(cmd *cobra.Command) error {
 		return nil
 	}
 
+	homeItem := types.HomeSidebarItem{
+		Name: "Home",
+	}
+
 	userSavedTracksListItem := types.UserSavedTracksListItem{
 		Name: "Liked songs",
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
 	userPlayList, err := model.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
 	if err != nil {
 		slog.Error(err.Error())
@@ -306,7 +309,13 @@ func runRoot(cmd *cobra.Command) error {
 	}
 
 	var items []list.Item
-	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
+	if userPlayList != nil {
+		for _, item := range userPlayList.Playlists {
+			items = append(items, types.MapPlaylistToPlaylist(item))
+		}
+	}
+
+	playlists := list.New(append([]list.Item{homeItem, userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 
 	input := textinput.New()

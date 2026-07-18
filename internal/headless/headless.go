@@ -434,12 +434,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			})
 		}
 
-		resp := &types.SearchResponse{
-			Tracks:    types.Paging[types.Track]{Items: tracks, Total: len(tracks)},
-			Artists:   types.Paging[types.Artist]{Items: artists, Total: len(artists)},
-			Playlists: types.Paging[types.Playlist]{Items: playlists, Total: len(playlists)},
-			Albums:    types.Paging[types.Album]{Items: albums, Total: len(albums)},
-		}
+		resp := &types.SearchResponse{}
 
 		data, err := json.Marshal(resp)
 		if err != nil {
@@ -690,32 +685,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
-		msgCh := make(chan youtube.ScanFuncArgs, 10)
-
-		go func() {
-			youtube.ReadYtDlpErrReader(m.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
-				msgCh <- args
-			})
-		}()
-
 		for {
 			select {
-			case msg := <-msgCh:
-				m.Mu.Lock()
-				message := SSEMessage{
-					Player: nil,
-					YtDlp: &struct {
-						Message string            `json:"message"`
-						LogType youtube.YtDlpLogs `json:"logType"`
-					}{
-						Message: msg.Line,
-						LogType: msg.LogType,
-					},
-				}
-				response, _ := json.Marshal(message)
-				fmt.Fprintf(w, "data: %s\n\n", response)
-				flusher.Flush()
-				m.Mu.Unlock()
 			case <-ctx.Done():
 				return
 			case <-ticker.C:

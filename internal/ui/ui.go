@@ -3,9 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -26,15 +24,12 @@ import (
 type FocusedOn string
 
 const (
-	SideView             FocusedOn = "SIDE_VIEW"
-	MainView             FocusedOn = "MAIN_VIEW"
-	Player               FocusedOn = "PLAYER"
-	SearchBar            FocusedOn = "SEARCH_BAR"
-	QueueList            FocusedOn = "QUEUE_LIST"
-	SearchResult         FocusedOn = "SEARCH_RESULT"
-	SearchResultTrack    FocusedOn = "SEARCH_RESULT_TRACK"
-	SearchResultArtist   FocusedOn = "SEARCH_RESULT_ARTIST"
-	SearchResultPlaylist FocusedOn = "SEARCH_RESULT_PLAYLIST"
+	SideView     FocusedOn = "SIDE_VIEW"
+	MainView     FocusedOn = "MAIN_VIEW"
+	Player       FocusedOn = "PLAYER"
+	SearchBar    FocusedOn = "SEARCH_BAR"
+	QueueList    FocusedOn = "QUEUE_LIST"
+	SearchResult FocusedOn = "SEARCH_RESULT"
 )
 
 type MainViewMode string
@@ -65,8 +60,6 @@ type SpotifySearchResult struct {
 type SelectedTrack struct {
 	isLiked bool
 	Track   *types.PlaylistTrackObject
-	//lets store skip count if it reachs 5 which means we are not able to find the matching song on youtube
-	SkipCount int
 }
 
 type MusicQueueList struct {
@@ -75,17 +68,15 @@ type MusicQueueList struct {
 }
 
 type Model struct {
-	Playlist              list.Model
+	BreadcrumbItems       []types.Breadcrumb
+	SideBarList           list.Model
 	Alert                 bubbleup.AlertModel
 	SelectedPlayListItems list.Model
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
 	PlayerProcess       *types.Player
-	LyricsServerProcess *os.Process
 	SelectedTrack       *SelectedTrack
-	YtDlpErrWriter      *io.PipeWriter
-	YtDlpErrReader      *io.PipeReader
 	PlayedSeconds       float64
 	Height              int
 	Width               int
@@ -102,13 +93,14 @@ type Model struct {
 	// TODO: find a better way than this looks very ugly
 	SearchQuery                              string
 	IsSearchLoading, IsLyricsServerInstalled bool
-	SearchResult                             *SpotifySearchResult
-	PaginationInfo                           *types.PaginationInfo
-	IsOnPagination                           bool
-	CoreDepsPath                             *youtube.CoreDepsPath
-	HomePageData                             *musicpb.GetHomePageResponse
-	HomePageList                             list.Model
-	HomePageViewMode                         HomePageViewMode
+	// SearchResult                             *SpotifySearchResult
+	SearchResult     list.Model
+	PaginationInfo   *types.PaginationInfo
+	IsOnPagination   bool
+	CoreDepsPath     *youtube.CoreDepsPath
+	HomePageData     *musicpb.GetHomePageResponse
+	HomePageList     list.Model
+	HomePageViewMode HomePageViewMode
 }
 
 type Instance struct {
@@ -151,34 +143,43 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) View() string {
-	m.Playlist.Title = "Playlist"
+	m.SideBarList.Title = "Youtube Music tui"
 	m.SelectedPlayListItems.Title = "Tracks"
 	m.MusicQueueList.Model.Title = "Queue"
-	removeListDefaults(&m.Playlist)
+	removeListDefaults(&m.SideBarList)
 	removeListDefaults(&m.SelectedPlayListItems)
+	removeListDefaults(&m.SearchResult)
+	m.SearchResult.SetShowTitle(false)
 	if m.MusicQueueList != nil {
 		removeListDefaults(&m.MusicQueueList.Model)
 	}
-
 	dimensions := calculateLayoutDimensions(&m)
-
-	playlistView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.Playlist.View())
-
+	sideBarView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
 	var mainView string
 	if m.IsSearchLoading {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, "loading...."))
+		loadingText := dimmerStyle.Render("  ⟳ Loading...")
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, loadingText),
+		)
 	} else if m.MainViewMode == SearchResultMode {
-		trackView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultTrack).Render(m.SearchResult.Tracks.View())
-		artistView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultArtist).Render(m.SearchResult.Artists.View())
-		playlistView := getStyle(&m, dimensions.mainWidth/4, dimensions.contentHeight, SearchResultPlaylist).Render(m.SearchResult.Playlists.View())
-		searchResultView := lipgloss.JoinVertical(lipgloss.Top, searchBar, lipgloss.JoinVertical(lipgloss.Top, "Search Result", lipgloss.JoinHorizontal(lipgloss.Top, trackView, artistView, playlistView)))
+		searchView := getStyle(&m, dimensions.contentHeight-10, dimensions.mainWidth-10, SearchResult).Render(m.SearchResult.View())
+		resultHeader := titleStyle.Render("  Search Results")
+		searchResultView := lipgloss.JoinVertical(lipgloss.Top,
+			searchBar,
+			resultHeader,
+			lipgloss.JoinHorizontal(lipgloss.Top, searchView),
+		)
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
 	} else if m.MainViewMode == LyricsMode {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()),
+		)
 	} else if m.MainViewMode == HomePageMode {
-		homePageContent := renderHomePage(&m, dimensions.mainWidth, dimensions.contentHeight)
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, homePageContent))
+		homePageContent := renderHomePage(&m)
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, homePageContent),
+		)
 	} else {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
 			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
@@ -187,37 +188,28 @@ func (m Model) View() string {
 	var playingView string
 
 	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-		var stringBuilder strings.Builder
-		stringBuilder.WriteString(m.SelectedTrack.Track.Track.Name)
-		stringBuilder.WriteString(" ")
-		var artistNames []string
-		for _, artist := range m.SelectedTrack.Track.Track.Artists {
-			artistNames = append(artistNames, artist.Name)
-		}
-		artistName := strings.Join(artistNames, ",")
-		stringBuilder.WriteString(artistName)
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
 		total := time.Duration(m.SelectedTrack.Track.Track.DurationMS) * time.Millisecond
-		playingView = renderNowPlaying(m.SelectedTrack, currentPosition, total)
+		playingView = renderNowPlaying(&m, currentPosition, total)
 	}
 
 	controls := renderPlayerControls(m.IsLyricsServerInstalled)
-	playingCombined := strings.TrimSpace(playingView) + "\n\n" + controls
+	playingCombined := strings.TrimSpace(playingView) + "\n" + controls
 
-	playing := getPlayerStyles(&m, dimensions).Foreground(lipgloss.Color("21")).Render(playingCombined)
+	playing := getPlayerStyles(&m, dimensions).
+		Foreground(playerFg).
+		Render(playingCombined)
 
 	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
 
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
-		lipgloss.JoinHorizontal(lipgloss.Top, playlistView, mainView, queueList),
+		lipgloss.JoinHorizontal(lipgloss.Top, sideBarView, mainView, queueList),
 		playing,
 	)
 	return m.Alert.Render(combinedView)
 }
 
-// formatTime formats a duration as "MM:SS" with minutes and seconds zero-padded to two digits.
-// Negative durations are treated as zero.
 func formatTime(d time.Duration) string {
 	if d < 0 {
 		d = 0
@@ -236,16 +228,14 @@ type layoutDimensions struct {
 }
 
 func calculateLayoutDimensions(m *Model) layoutDimensions {
-	sidebarWidth := m.Width * 20 / 100
-	inputHeight := min(max(m.Height*6/100, 3), 8)
-
+	sidebarWidth := m.Width * 22 / 100
+	inputHeight := min(max(m.Height*10/100, 2), 3)
 	mainCenterArea := (m.Width - (sidebarWidth * 2))
 
-	//main area is basically total width minus left sidebar minus right sidebar and
 	return layoutDimensions{
 		sidebarWidth:  sidebarWidth,
 		mainWidth:     mainCenterArea,
-		contentHeight: m.Height * 85 / 100,
+		contentHeight: m.Height * 90 / 100,
 		inputHeight:   inputHeight,
 	}
 }

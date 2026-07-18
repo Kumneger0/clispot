@@ -48,7 +48,6 @@ type CoreDepsPath struct {
 func SearchAndDownloadMusic(
 	videoID string,
 	shouldWait bool,
-	ytDlpErrWriter *io.PipeWriter,
 	coreDepsPath *CoreDepsPath,
 	getStreamURL func() (string, error),
 ) tea.Cmd {

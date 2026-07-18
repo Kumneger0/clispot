@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -18,7 +16,6 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
@@ -276,11 +273,7 @@ func runRoot(cmd *cobra.Command) error {
 		YtMusicClient: client,
 		CoreDepsPath:  coreDepsPath,
 	}
-
-	reader, writer := io.Pipe()
-	model.YtDlpErrWriter = writer
-	model.YtDlpErrReader = reader
-
+	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -288,36 +281,15 @@ func runRoot(cmd *cobra.Command) error {
 		headless.StartServer(&safeModel, messageChan)
 		return nil
 	}
-
-	homeItem := types.HomeSidebarItem{
-		Name: "Home",
+	sideBarItems := []struct{ name, icon string }{{name: "Home", icon: "⌂"}, {name: "Library", icon: ""}}
+	var SideBarMenuList []list.Item
+	for _, item := range sideBarItems {
+		SideBarMenuList = append(SideBarMenuList, types.SidebarItem{
+			Name: item.name,
+			Icon: item.icon,
+		})
 	}
-
-	userSavedTracksListItem := types.UserSavedTracksListItem{
-		Name: "Liked songs",
-	}
-
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
-	userPlayList, err := model.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
-	if err != nil {
-		slog.Error(err.Error())
-		fmt.Fprintln(os.Stdout, err)
-	}
-
-	if userPlayList == nil {
-		slog.Error("GetUserPlaylists returned nil")
-	}
-
-	var items []list.Item
-	if userPlayList != nil {
-		for _, item := range userPlayList.Playlists {
-			items = append(items, types.MapPlaylistToPlaylist(item))
-		}
-	}
-
-	playlists := list.New(append([]list.Item{homeItem, userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
-
 	input := textinput.New()
 	input.Placeholder = "Search tracks, artists, albums..."
 	input.Prompt = "> "
@@ -327,26 +299,19 @@ func runRoot(cmd *cobra.Command) error {
 
 	model.Search = input
 	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, 10, 20)
 
-	model.Playlist = playlists
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = &ui.MusicQueueList{
 		Model:          musicQueueList,
 		PaginationInfo: nil,
 	}
-	_, err = exec.LookPath("clispot-lyrics")
 	if err != nil {
 		model.IsLyricsServerInstalled = false
 	} else {
 		model.IsLyricsServerInstalled = true
 	}
 	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-
-	go func() {
-		youtube.ReadYtDlpErrReader(model.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
-			Program.Send(args)
-		})
-	}()
 
 	go func() {
 		if messageChan == nil {

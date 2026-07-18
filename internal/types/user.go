@@ -22,15 +22,16 @@ func (u UserSavedTracksListItem) Title() string {
 	return u.Name
 }
 
-type HomeSidebarItem struct {
+type SidebarItem struct {
 	Name string
+	Icon string
 }
 
-func (h HomeSidebarItem) FilterValue() string {
+func (h SidebarItem) FilterValue() string {
 	return h.Name
 }
 
-func (h HomeSidebarItem) Title() string {
+func (h SidebarItem) Title() string {
 	return h.Name
 }
 
@@ -60,3 +61,33 @@ func (h HomePageContentItem) FilterValue() string {
 func (h HomePageContentItem) Title() string {
 	return h.ItemTitle
 }
+
+func (h HomePageContentItem) Subtitle() string {
+	return h.Description
+}
+
+type Breadcrumb struct{ Name, Icon string }
+
+type SearchResultType int
+
+const (
+	SearchResultTrack SearchResultType = iota
+	SearchResultArtist
+	SearchResultPlaylist
+	SearchResultAlbum
+)
+
+type SearchResultItem interface {
+	Title() string
+	FilterValue() string
+	Kind() SearchResultType
+}
+
+func (t Track) Title() string             { return t.Name }
+func (t Track) FilterValue() string       { return t.Name }
+func (t Track) Kind() SearchResultType    { return SearchResultTrack }
+func (a Artist) Kind() SearchResultType   { return SearchResultArtist }
+func (p Playlist) Kind() SearchResultType { return SearchResultPlaylist }
+func (a Album) Title() string             { return a.Name }
+func (a Album) FilterValue() string       { return a.Name }
+func (a Album) Kind() SearchResultType    { return SearchResultAlbum }

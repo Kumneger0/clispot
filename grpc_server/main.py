@@ -2,7 +2,7 @@ from concurrent import futures
 import grpc
 import os
 import sys
-from typing import  Any, override
+from typing import override
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
@@ -398,13 +398,13 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
             
             for content in section.get("contents", []):
                 content_msg = music_pb2.HomePageContent(
-                    title=content.get("title") or "",
-                    playlist_id=content.get("playlistId") or "",
-                    description=content.get("description") or ""
+                    title=content.get("title") or "",  # pyright: ignore[reportArgumentType]
+                    playlist_id=content.get("playlistId") or "",  # pyright: ignore[reportArgumentType]
+                    description=content.get("description") or ""  # pyright: ignore[reportArgumentType]
                 )
                 
-                for thumbnail in content.get("thumbnails", []):
-                    content_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                for thumbnail in content.get("thumbnails", []):  # pyright: ignore[reportGeneralTypeIssues, reportUnknownVariableType]
+                    content_msg.thumbnails.append(_to_proto_thumbnail(thumbnail))  # pyright: ignore[reportUnknownArgumentType]
                 
                 section_msg.contents.append(content_msg)
             

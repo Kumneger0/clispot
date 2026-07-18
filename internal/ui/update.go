@@ -71,6 +71,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		m.HomePageList = list.New(items, CustomDelegate{Model: &m}, 10, 20)
+		m.IsSearchLoading = false
 		removeListDefaults(&m.HomePageList)
 		m.HomePageList.Title = msg.Item.Title()
 		m.HomePageViewMode = HomePageContentView
@@ -133,6 +134,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.HomePageData = msg.Response
+		m.IsSearchLoading = false
 		var items []list.Item
 		for i, section := range msg.Response.Sections {
 			items = append(items, types.HomePageSectionItem{
@@ -716,7 +718,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 						Err:      nil,
 					}
 				}
-				return m, homePageFeed
+				return m, tea.Batch(SendLoadingCmd(), homePageFeed)
 			}
 		}
 	}
@@ -758,7 +760,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 			}
 			newBreadcrumbItems := []types.Breadcrumb{{Name: item.ItemTitle, Icon: ""}}
 			m.BreadcrumbItems = append(m.BreadcrumbItems, newBreadcrumbItems...)
-			return m, playlistDetailMsg
+			return m, tea.Batch(SendLoadingCmd(), playlistDetailMsg)
 		}
 
 		listItemToChooseMusicFrom := getListItemForMusicToChoose(&m, m.FocusedOn)

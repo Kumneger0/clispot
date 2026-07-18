@@ -707,7 +707,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 					if err != nil {
 						slog.Error(err.Error())
 						return types.HomePageResponseMsg{
-							Response: nil,
+							Response: homePage,
 							Err:      err,
 						}
 					}
@@ -924,7 +924,43 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		}
 	}
 	if m.FocusedOn == SearchResult {
-		// TODO: implement later
+		if selectedItem, ok := m.SearchResult.SelectedItem().(types.SearchResultItem); ok {
+			switch selectedItem.Kind() {
+			case types.SearchResultTrack:
+				track, ok := selectedItem.(types.Track)
+				if !ok {
+					slog.Error("failed to cast the selected item to types.Track")
+					return m, nil
+				}
+				return m.PlaySelectedMusic(types.PlaylistTrackObject{
+					Track: track,
+				}, true)
+			case types.SearchResultPlaylist:
+				playlist, ok := selectedItem.(types.Playlist)
+				if !ok {
+					slog.Error("failed to cast the selected item to types.Playlist")
+					return m, nil
+				}
+				loadingCmd := SendLoadingCmd()
+				cmd := m.getPlaylistItems(playlist.ID)
+				m.MainViewMode = NormalMode
+				m.FocusedOn = MainView
+				updateDelegate(&m)
+				return m, tea.Batch(cmd, loadingCmd)
+			case types.SearchResultArtist:
+				artist, ok := selectedItem.(types.Artist)
+				if !ok {
+					slog.Error("failed to cast the selected item to types.Artist")
+					return m, nil
+				}
+				loadingCmd := SendLoadingCmd()
+				cmd := m.getArtistTracks(artist.ID)
+				m.MainViewMode = NormalMode
+				m.FocusedOn = MainView
+				updateDelegate(&m)
+				return m, tea.Batch(cmd, loadingCmd)
+			}
+		}
 	}
 	return m, nil
 }

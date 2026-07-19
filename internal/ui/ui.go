@@ -177,12 +177,10 @@ func (m Model) View() string {
 	removeListDefaults(&m.SelectedPlayListItems)
 	removeListDefaults(&m.SearchResult)
 	removeListDefaults(&m.HomePageList)
+	removeListDefaults(&m.MusicQueueList.Model)
 	m.SearchResult.SetShowTitle(false)
 	m.SelectedPlayListItems.SetShowTitle(false)
 	m.HomePageList.SetShowTitle(false)
-	if m.MusicQueueList != nil {
-		removeListDefaults(&m.MusicQueueList.Model)
-	}
 	dimensions := calculateLayoutDimensions(&m)
 	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)

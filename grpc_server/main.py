@@ -2,7 +2,8 @@ from concurrent import futures
 import grpc
 import os
 import sys
-from typing import override
+from pathlib import Path
+from typing import  Any, override
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
@@ -11,14 +12,14 @@ from grpc_server.gen import music_pb2, music_pb2_grpc
 
 from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]
+    YTHomeSection,
     YTSearchResult,
     YTSong,
     YTThumbnail,
     YTArtist,
     YTLibraryAlbum,
     YTLibraryPlaylist,
-    YTSearchFilter,
-    YTHomeSection
+    YTSearchFilter
 )
 
 def _to_proto_thumbnail(thumb: YTThumbnail) -> music_pb2.Thumbnail:
@@ -295,7 +296,29 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
                 for thumbnail in result.get("thumbnails", []):
                     playlist_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
                 response.playlists.append(playlist_item)
-                
+
+            elif result_type == "video":
+                song_item = music_pb2.SearchResultSong(
+                    video_id=result.get("videoId") or "",
+                    title=result.get("title") or "",
+                    album="",
+                    album_id="",
+                    duration_seconds=result.get("duration_seconds") or 0,
+                    is_explicit=bool(result.get("isExplicit")),
+                )
+                album_info = result.get("album")
+                if isinstance(album_info, dict):
+                    song_item.album = album_info.get("name") or ""
+                    song_item.album_id = album_info.get("id") or ""
+                elif isinstance(album_info, str):
+                    song_item.album = album_info
+
+                for artist in result.get("artists", []):
+                    song_item.artists.append(_to_proto_artist(artist))
+                for thumbnail in result.get("thumbnails", []):
+                    song_item.thumbnails.append(_to_proto_thumbnail(thumbnail))
+                response.songs.append(song_item)
+
         return response
 
     @override
@@ -384,7 +407,6 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         return music_pb2.GetVideoStreamURLResponse(
             url=stream_url
         )
-
     @override
     def GetHomePage(self, request: music_pb2.GetHomePageRequest, context: grpc.ServicerContext) -> music_pb2.GetHomePageResponse:
         home_sections: list[YTHomeSection] = self.client.get_home()
@@ -415,7 +437,8 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 def serve() -> None:
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    servicer = MusicService("grpc_server/browser.json")
+    auth_file = str(Path.home() / ".config" / "ytmusic-tui" / "browser.json")
+    servicer = MusicService(auth_file)
     music_pb2_grpc.add_MusicServiceServicer_to_server(servicer, server) # type: ignore  # pyright: ignore[reportUnknownMemberType]
 
     _ = server.add_insecure_port("[::]:" + port)

@@ -12,7 +12,9 @@ logs.json
 todo.md
 *.debug.txt
 mock-ui.txt
-.idea/*# Python-generated files
+.idea/*
+
+# Python-generated files
 __pycache__/
 *.py[oc]
 build/

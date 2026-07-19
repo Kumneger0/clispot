@@ -3,8 +3,8 @@ package youtube
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"net/http"
+	"time"
 
 	"io"
 	"log/slog"
@@ -62,14 +62,17 @@ func SearchAndDownloadMusic(
 		streamURL, err := getStreamURL()
 		if err != nil {
 			slog.Error(err.Error())
+			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
 		}
 		appConfig := config.GetConfig()
 		logPathName := appConfig.DebugDir
 		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
-		resp, err := http.Get(streamURL)
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Get(streamURL)
 		if err != nil {
-			fmt.Println("err", err)
 			slog.Error(err.Error())
+			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
 		}
 
 		ff, _ := command.ExecCommand(coreDepsPath.FFmpeg,
@@ -100,7 +103,7 @@ func SearchAndDownloadMusic(
 			return types.SearchAndDownloadMusicMsg{
 				Player:  nil,
 				VideoID: videoID,
-				Err:     nil,
+				Err:     err,
 			}
 		}
 		if shouldWait {
@@ -171,10 +174,10 @@ func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs))
 		return
 	}
 	scanner := bufio.NewScanner(reader)
-	if err := scanner.Err(); err != nil {
-		slog.Error(err.Error())
-	}
 	for scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			slog.Error(err.Error())
+		}
 		line := scanner.Text()
 		if strings.Contains(strings.ToLower(line), "skipping") {
 			scanFunc(ScanFuncArgs{

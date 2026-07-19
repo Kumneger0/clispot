@@ -593,8 +593,8 @@ func (m Model) addMusicToQueue() (Model, tea.Cmd) {
 		itemToAdd = m.SelectedPlayListItems.SelectedItem()
 	} else if m.FocusedOn == SearchResult && m.MainViewMode == SearchResultMode {
 		if len(m.SearchResult.Items()) > 0 {
-			if selectedItem, ok := m.SearchResult.SelectedItem().(types.SearchResultItem); ok && selectedItem.Kind() == types.SearchResultTrack {
-				itemToAdd = m.SearchResult.SelectedItem()
+			if track, ok := m.SearchResult.SelectedItem().(types.Track); ok {
+				itemToAdd = types.PlaylistTrackObject{Track: track}
 			}
 		}
 	} else {

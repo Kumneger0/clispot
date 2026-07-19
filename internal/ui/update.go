@@ -97,6 +97,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			resp, err := m.YtMusicClient.CheckUserSavedTrack(ctx, &musicpb.CheckUserSavedTrackRequest{
 				VideoId: msg.VideoID,
 			})
+			if err != nil {
+				return types.CheckUserSavedTrackResponseMsg{
+					Saved: false,
+					Err:   err,
+				}
+			}
 			return types.CheckUserSavedTrackResponseMsg{
 				Saved: resp.IsSaved,
 				Err:   err,
@@ -129,12 +135,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.IsSearchLoading = false
 		}
 	case types.HomePageResponseMsg:
+		var alertCmd tea.Cmd
+		m.IsSearchLoading = false
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
-			return m, nil
+			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "Failed Fetch homePage Content")
+			cmds = append(cmds, alertCmd)
+			return m, tea.Batch(cmds...)
 		}
 		m.HomePageData = msg.Response
-		m.IsSearchLoading = false
 		var items []list.Item
 		for i, section := range msg.Response.Sections {
 			items = append(items, types.HomePageSectionItem{
@@ -788,6 +797,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		if m.MusicQueueList == nil {
 			return m, nil
 		}
+		m.BreadcrumbItems = append(m.BreadcrumbItems, types.Breadcrumb{Name: selectedMusic.Title(), Icon: ""})
 		m.MusicQueueList.Model.SetItems(items)
 		m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic, false)

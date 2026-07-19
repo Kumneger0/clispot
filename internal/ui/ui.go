@@ -154,7 +154,6 @@ func renderBreadcrumbs(items []types.Breadcrumb) string {
 		if item.Icon != "" {
 			label = fmt.Sprintf("%s %s", item.Icon, item.Name)
 		}
-
 		itemStyle := lipgloss.NewStyle().Foreground(accentColor).Bold(true)
 		if i == len(items)-1 {
 			itemStyle = itemStyle.Foreground(textPrimary).Bold(true)
@@ -185,7 +184,7 @@ func (m Model) View() string {
 		removeListDefaults(&m.MusicQueueList.Model)
 	}
 	dimensions := calculateLayoutDimensions(&m)
-	sideBarView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.SideBarList.View())
+	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
 	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
 	var mainView string

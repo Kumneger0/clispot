@@ -267,13 +267,15 @@ func runRoot(cmd *cobra.Command) error {
 	client, conn := ytMusicClient.GetYtMusicClient()
 	defer conn.Close()
 	model := ui.Model{
-		FocusedOn:     ui.SideView,
-		DBusConn:      ins,
-		MainViewMode:  ui.HomePageMode,
-		YtMusicClient: client,
-		CoreDepsPath:  coreDepsPath,
+		BreadcrumbItems: []types.Breadcrumb{{Name: "Home", Icon: "⌂"}},
+		FocusedOn:       ui.SideView,
+		DBusConn:        ins,
+		MainViewMode:    ui.HomePageMode,
+		YtMusicClient:   client,
+		CoreDepsPath:    coreDepsPath,
 	}
 	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -305,11 +307,6 @@ func runRoot(cmd *cobra.Command) error {
 	model.MusicQueueList = &ui.MusicQueueList{
 		Model:          musicQueueList,
 		PaginationInfo: nil,
-	}
-	if err != nil {
-		model.IsLyricsServerInstalled = false
-	} else {
-		model.IsLyricsServerInstalled = true
 	}
 	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 

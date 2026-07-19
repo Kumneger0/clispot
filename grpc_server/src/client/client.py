@@ -29,7 +29,7 @@ class MusicClient:
             "format": "bestaudio",
             "quiet": True,
         }
-        with YoutubeDL(options) as ydl:
+        with YoutubeDL(options) as ydl:  # pyright: ignore[reportArgumentType]
             info = ydl.extract_info(
                 full_url,
                 download=False,
@@ -69,11 +69,9 @@ class MusicClient:
         track: YTSongResponse = cast(YTSongResponse, video_details)
         stream_url = ''
         track_video_id = track.get('videoId')
-        print('video id', track_video_id)
         if isinstance(track_video_id, str):
                 stream_url = self.get_stream_url(video_id=track_video_id)
         
-        print('stream ulr', stream_url)
         track['url'] = stream_url
         return track
 

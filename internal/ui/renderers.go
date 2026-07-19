@@ -94,17 +94,6 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 				}
 			}
 		}
-	// case types.Artist:
-	// 	icon = "♪"
-	// 	title = item.Name
-	// 	if d.Model != nil {
-	// 		switch d.Model.FocusedOn {
-	// 		case SideView:
-	// 			if !item.IsItFromSearch {
-	// 				isSelected = m.Index() == index
-	// 			}
-	// 		}
-	// 	}
 	case types.SidebarItem:
 		icon = item.Icon
 		title = item.Name
@@ -112,7 +101,7 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			isSelected = m.Index() == index
 		}
 	case types.HomePageContentItem:
-		icon = " "
+		icon = "☰"
 		title = item.ItemTitle
 		subtitle = item.Description
 		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
@@ -125,24 +114,10 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			isSelected = m.Index() == index
 		}
 	case types.UserSavedTracksListItem:
-		// types.Playlist:
 		title = item.FilterValue()
 		if d.Model != nil {
-			// if playlist, ok := item.(types.Playlist); ok {
-			// icon = "☰"
-			// switch d.Model.FocusedOn {
-			// case SideView:
-			// 	if !playlist.IsItFromSearch {
-			// 		isSelected = m.Index() == index
-			// 	}
-			// }
-			// if playlist.Author != "" {
-			// 	subtitle = playlist.Author
-			// }
-			// } else {
 			icon = "♥"
 			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
-			// }
 		}
 	}
 
@@ -253,7 +228,7 @@ func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) st
 	)
 }
 
-func renderPlayerControls(isLyricsServerInstalled bool) string {
+func renderPlayerControls() string {
 	key := lipgloss.NewStyle().Foreground(accentColor).Bold(true)
 	sep := dimmerStyle.Render("  │  ")
 	label := lipgloss.NewStyle().Foreground(textSecondary)
@@ -265,17 +240,7 @@ func renderPlayerControls(isLyricsServerInstalled bool) string {
 		key.Render("⏭")+label.Render(" next")+dimmerStyle.Render("(n)"),
 		key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
 		key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+		key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"),
 	)
-	if isLyricsServerInstalled {
-		parts = append(parts, key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"))
-	}
 	return strings.Join(parts, sep)
-}
-
-func renderHomePage(m *Model) string {
-	if m.HomePageData == nil || len(m.HomePageData.Sections) == 0 {
-		return dimmerStyle.Render("  Loading homepage...")
-	}
-
-	return m.HomePageList.View()
 }

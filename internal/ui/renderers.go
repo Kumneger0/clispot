@@ -127,22 +127,12 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 	var rendered string
 	if subtitle != "" && availableWidth > len(title)+5 {
-		subtitleMaxLen := availableWidth - len(title) - 3
-		if subtitleMaxLen > 0 {
-			if isSelected {
-				rendered = selectedStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
-					selectedStyle.Foreground(lipgloss.Color("#D4D4D8")).Render(fmt.Sprintf(" · %s ", subtitle))
-			} else {
-				rendered = normalStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
-					dimStyle.Render(fmt.Sprintf(" · %s ", subtitle))
-			}
+		if isSelected {
+			rendered = selectedStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
+				selectedStyle.Foreground(lipgloss.Color("#D4D4D8")).Render(fmt.Sprintf(" · %s ", subtitle))
 		} else {
-			str := fmt.Sprintf(" %s %s ", icon, title)
-			if isSelected {
-				rendered = selectedStyle.Render(str)
-			} else {
-				rendered = normalStyle.Render(str)
-			}
+			rendered = normalStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
+				dimStyle.Render(fmt.Sprintf(" · %s ", subtitle))
 		}
 	} else {
 		str := fmt.Sprintf(" %s %s ", icon, title)

@@ -157,7 +157,7 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         song_msg = music_pb2.Song(
             video_id=track_details.get("videoId") or request.video_id,
             title=track_details.get("title") or "",
-            url=track_details.get('url'),
+            url=track_details.get("url") or "",
             album="",
             album_id="",
             duration_seconds=0,

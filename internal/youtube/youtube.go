@@ -175,9 +175,6 @@ func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs))
 	}
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			slog.Error(err.Error())
-		}
 		line := scanner.Text()
 		if strings.Contains(strings.ToLower(line), "skipping") {
 			scanFunc(ScanFuncArgs{
@@ -211,6 +208,9 @@ func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs))
 				LogType: INFO,
 			})
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		slog.Error(err.Error())
 	}
 }
 

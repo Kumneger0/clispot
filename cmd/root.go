@@ -264,7 +264,7 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
-	client, conn, err := ytMusicClient.GetYtMusicClient()
+	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)

@@ -19,7 +19,7 @@ jobs:
           go-version: '1.25.x'
 
       - name: Set up uv and Python 3.13
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
         with:
            python-version: '3.13'
            enable-cache: true

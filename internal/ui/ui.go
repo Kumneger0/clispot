@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -91,9 +92,9 @@ type Model struct {
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
 	// TODO: find a better way than this looks very ugly
-	SearchQuery                              string
-	IsSearchLoading, IsLyricsServerInstalled bool
+	SearchQuery string
 	// SearchResult                             *SpotifySearchResult
+	IsSearchLoading  bool
 	SearchResult     list.Model
 	PaginationInfo   *types.PaginationInfo
 	IsOnPagination   bool
@@ -139,31 +140,64 @@ func (m Model) Init() tea.Cmd {
 			Err:      nil,
 		}
 	}
-	return tea.Batch(cmd, m.Alert.Init(), homePageFeed)
+	return tea.Batch(cmd, m.Alert.Init(), SendLoadingCmd(), homePageFeed)
+}
+
+func renderBreadcrumbs(items []types.Breadcrumb) string {
+	if len(items) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(items)*2)
+	for i, item := range items {
+		label := item.Name
+		if item.Icon != "" {
+			label = fmt.Sprintf("%s %s", item.Icon, item.Name)
+		}
+
+		itemStyle := lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+		if i == len(items)-1 {
+			itemStyle = itemStyle.Foreground(textPrimary).Bold(true)
+		} else {
+			itemStyle = itemStyle.Foreground(accentColor)
+		}
+
+		parts = append(parts, itemStyle.Render(label))
+		if i < len(items)-1 {
+			parts = append(parts, lipgloss.NewStyle().Foreground(textDim).Render("▸"))
+		}
+	}
+
+	return lipgloss.NewStyle().Padding(0, 0, 0, 1).Render(strings.Join(parts, " "))
 }
 
 func (m Model) View() string {
 	m.SideBarList.Title = "Youtube Music tui"
-	m.SelectedPlayListItems.Title = "Tracks"
 	m.MusicQueueList.Model.Title = "Queue"
 	removeListDefaults(&m.SideBarList)
 	removeListDefaults(&m.SelectedPlayListItems)
 	removeListDefaults(&m.SearchResult)
+	removeListDefaults(&m.HomePageList)
 	m.SearchResult.SetShowTitle(false)
+	m.SelectedPlayListItems.SetShowTitle(false)
+	m.HomePageList.SetShowTitle(false)
 	if m.MusicQueueList != nil {
 		removeListDefaults(&m.MusicQueueList.Model)
 	}
 	dimensions := calculateLayoutDimensions(&m)
 	sideBarView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
+	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
 	var mainView string
 	if m.IsSearchLoading {
 		loadingText := dimmerStyle.Render("  ⟳ Loading...")
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
-			lipgloss.JoinVertical(lipgloss.Top, searchBar, loadingText),
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, loadingText),
 		)
 	} else if m.MainViewMode == SearchResultMode {
-		searchView := getStyle(&m, dimensions.contentHeight-10, dimensions.mainWidth-10, SearchResult).Render(m.SearchResult.View())
+		height := dimensions.contentHeight - (dimensions.contentHeight * 10 / 100)
+		width := dimensions.mainWidth - (dimensions.mainWidth * 10 / 100)
+		searchView := getStyle(&m, height, width, SearchResult).Render(m.SearchResult.View())
 		resultHeader := titleStyle.Render("  Search Results")
 		searchResultView := lipgloss.JoinVertical(lipgloss.Top,
 			searchBar,
@@ -173,16 +207,15 @@ func (m Model) View() string {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
 	} else if m.MainViewMode == LyricsMode {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
-			lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()),
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, m.LyricsView.View()),
 		)
 	} else if m.MainViewMode == HomePageMode {
-		homePageContent := renderHomePage(&m)
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
-			lipgloss.JoinVertical(lipgloss.Top, searchBar, homePageContent),
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.HomePageList.View())),
 		)
 	} else {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
-			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
+			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SelectedPlayListItems.View())))
 	}
 
 	var playingView string
@@ -194,15 +227,13 @@ func (m Model) View() string {
 		playingView = renderNowPlaying(&m, currentPosition, total)
 	}
 
-	controls := renderPlayerControls(m.IsLyricsServerInstalled)
+	controls := renderPlayerControls()
 	playingCombined := strings.TrimSpace(playingView) + "\n" + controls
 
 	playing := getPlayerStyles(&m, dimensions).
 		Foreground(playerFg).
 		Render(playingCombined)
-
 	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
-
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
 		lipgloss.JoinHorizontal(lipgloss.Top, sideBarView, mainView, queueList),
 		playing,
@@ -211,10 +242,7 @@ func (m Model) View() string {
 }
 
 func formatTime(d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	totalSeconds := int(d.Seconds())
+	totalSeconds := int(time.Duration(math.Max(float64(d), 0)).Seconds())
 	minutes := totalSeconds / 60
 	seconds := totalSeconds % 60
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)

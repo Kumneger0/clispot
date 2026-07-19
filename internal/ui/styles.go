@@ -59,14 +59,8 @@ func getStyle(m *Model, height, width int, focusedOn FocusedOn) lipgloss.Style {
 			Height(height).
 			Padding(1, 0, 0, 0)
 	}
-
 	isFocused := m.FocusedOn == focusedOn
-
 	border := lipgloss.RoundedBorder()
-	if isFocused {
-		border = lipgloss.RoundedBorder()
-	}
-
 	style := lipgloss.NewStyle().
 		Width(width).
 		Height(height).

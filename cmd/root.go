@@ -264,7 +264,11 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
-	client, conn := ytMusicClient.GetYtMusicClient()
+	client, conn, err := ytMusicClient.GetYtMusicClient()
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 	defer conn.Close()
 	model := ui.Model{
 		BreadcrumbItems: []types.Breadcrumb{{Name: "Home", Icon: "⌂"}},

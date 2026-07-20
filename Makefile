@@ -13,7 +13,7 @@ help: ## list makefile targets
 .PHONY: build
 build: ## build Go application
 	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags)" -o $(projectname)
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
 
 .PHONY: install
 install: build ## install clispot to /usr/local/bin
@@ -25,7 +25,7 @@ install: build ## install clispot to /usr/local/bin
 run: build ## build and run Go application
 	@./$(projectname)
 
-.PHONY: bootstrap
+.PHONY: bootstrap	
 bootstrap: ## bootstrap go tools
 	go generate -tags tools tools/tools.go
 
@@ -58,6 +58,11 @@ hooks: ## install git commit-msg hook for commitlint (local)
 	@git config core.hooksPath scripts/hooks
 	@echo "--> Git hooks installed (commit-msg)."
 
+
+.PHONY: server-build
+ server-build: ## build python to single executable 
+		@echo "building python to single executable"
+		.venv/bin/python -m nutika --onefile grpc_server/main.py 
 
 .PHONY: proto
 proto: proto-python proto-go ## generate protobuf files for both python and go

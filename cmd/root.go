@@ -37,7 +37,7 @@ var (
 	Program *tea.Program
 )
 
-func newRootCmd(version string) *cobra.Command {
+func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clispot",
 		Short: "youtube music player",
@@ -71,7 +71,7 @@ func newRootCmd(version string) *cobra.Command {
 			return runRoot(cmd)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if memFile != "" {
+			if memFile != "" && debug {
 				f, err := os.Create(memFile)
 				if err != nil {
 					log.Fatal("could not create memory profile: ", err)
@@ -412,23 +412,25 @@ var (
 	memFile string
 )
 
-func Execute(version string) error {
-	cmd := newRootCmd(version)
-	cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
-	cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
+func Execute(version string, debug bool) error {
+	cmd := newRootCmd(version, debug)
+	if debug {
+		cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
+		cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
 
-	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if cpuFile != "" {
-			f, err := os.Create(cpuFile)
-			if err != nil {
-				return fmt.Errorf("could not create CPU profile: %w", err)
+		cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			if cpuFile != "" {
+				f, err := os.Create(cpuFile)
+				if err != nil {
+					return fmt.Errorf("could not create CPU profile: %w", err)
+				}
+				if err := pprof.StartCPUProfile(f); err != nil {
+					f.Close()
+					return fmt.Errorf("could not start CPU profile: %w", err)
+				}
 			}
-			if err := pprof.StartCPUProfile(f); err != nil {
-				f.Close()
-				return fmt.Errorf("could not start CPU profile: %w", err)
-			}
+			return nil
 		}
-		return nil
 	}
 
 	defaultDebugDir := filepath.Join(config.GetStateDir(runtime.GOOS), "logs")

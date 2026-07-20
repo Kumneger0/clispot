@@ -66,6 +66,8 @@ class MusicClient:
         raw_song: object = self.client.get_song(videoId=video_id)
         song_dict = cast(dict[str, object], raw_song)
         video_details = song_dict.get("videoDetails")
+        if not isinstance(video_details, dict):
+            return cast(YTSongResponse, {})
         track: YTSongResponse = cast(YTSongResponse, video_details)
         stream_url = ''
         track_video_id = track.get('videoId')

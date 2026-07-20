@@ -10,10 +10,16 @@ help: ## list makefile targets
 # Go Client Targets
 # ==============================================================================
 
-.PHONY: build
-build: ## build Go application
+.PHONY: dev
+dev: ## build Go application
 	@echo "--> Building Go application..."
 	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
+
+.PHONY: build
+build: server-build
+	@mkdir -p backend
+	@cp dist/main backend/
+
 
 .PHONY: install
 install: build ## install clispot to /usr/local/bin
@@ -22,7 +28,7 @@ install: build ## install clispot to /usr/local/bin
 	@echo "--> Installation complete. Run 'clispot' to start."
 
 .PHONY: run
-run: build ## build and run Go application
+run: dev ## build and run Go application
 	@./$(projectname)
 
 .PHONY: bootstrap	
@@ -62,16 +68,28 @@ hooks: ## install git commit-msg hook for commitlint (local)
 .PHONY: server-build
  server-build: ## build python to single executable 
 		@echo "building python to single executable"
-		.venv/bin/python -m nutika --onefile grpc_server/main.py 
+		.venv/bin/pyinstaller --onefile \
+		 --collect-data ytmusicapi \
+		 grpc_server/main.py 
 
 .PHONY: proto
 proto: proto-python proto-go ## generate protobuf files for both python and go
 
 .PHONY: proto-python
-proto-python: ## generate protobuf files for python server
+proto-python:
 	@echo "Generating Python protobuf files..."
 	@mkdir -p grpc_server/gen
-	.venv/bin/python -m grpc_tools.protoc -Iproto --python_out=grpc_server/gen --grpc_python_out=grpc_server/gen --pyi_out=grpc_server/gen proto/music.proto
+	@touch grpc_server/gen/__init__.py
+
+	.venv/bin/python -m grpc_tools.protoc \
+		-Iproto \
+		--python_out=grpc_server/gen \
+		--grpc_python_out=grpc_server/gen \
+		--pyi_out=grpc_server/gen \
+		proto/music.proto
+
+	@sed -i 's/^import music_pb2 as/from . import music_pb2 as/' grpc_server/gen/music_pb2_grpc.py
+
 	@echo "Generated Python files successfully."
 
 .PHONY: proto-go

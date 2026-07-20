@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"net/http"
-	"time"
 
 	"io"
 	"log/slog"
@@ -68,8 +67,7 @@ func SearchAndDownloadMusic(
 		logPathName := appConfig.DebugDir
 		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
 
-		client := &http.Client{Timeout: 30 * time.Second}
-		resp, err := client.Get(streamURL)
+		resp, err := http.Get(streamURL)
 		if err != nil {
 			slog.Error(err.Error())
 			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}

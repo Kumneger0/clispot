@@ -3,12 +3,12 @@ import grpc
 import os
 import sys
 from pathlib import Path
-from typing import  Any, override
+from typing import override
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
 
-from grpc_server.gen import music_pb2, music_pb2_grpc
+from grpc_server.gen import music_pb2, music_pb2_grpc  # pyright: ignore[reportImplicitRelativeImport]
 
 from grpc_server.src.client.client import MusicClient  # pyright: ignore[reportImplicitRelativeImport]
 from grpc_server.src.client.types import (  # pyright: ignore[reportImplicitRelativeImport]

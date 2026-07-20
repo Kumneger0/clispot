@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	backend "github.com/kumneger0/clispot/backend"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
@@ -105,7 +106,6 @@ func isProcessRunning(pid int) bool {
 
 func showAnotherProcessIsRunning(lockFilePath string) {
 	if runtime.GOOS == "windows" {
-		// Windows doesn't allow us to read the content of the file if the file is acquired by another process
 		fmt.Fprintf(os.Stderr, "Another instance of clispot is already running.\n")
 		return
 	}
@@ -262,6 +262,13 @@ func runRoot(cmd *cobra.Command) error {
 
 	if err != nil {
 		slog.Error(err.Error())
+	}
+
+	_, err = backend.StartBackend(backend.PythonBacked)
+	if err != nil {
+		slog.Error(err.Error())
+		log.Fatal(err)
+		return nil
 	}
 
 	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")

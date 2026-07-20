@@ -264,13 +264,16 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
-	_, err = backend.StartBackend(backend.PythonBacked)
+	backendCmd, err := backend.StartBackend(backend.PythonBacked)
 	if err != nil {
 		slog.Error(err.Error())
 		log.Fatal(err)
-		return nil
 	}
-
+	defer func() {
+		if backendCmd != nil && backendCmd.Process != nil {
+			_ = backendCmd.Process.Kill()
+		}
+	}()
 	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
 	if err != nil {
 		slog.Error(err.Error())

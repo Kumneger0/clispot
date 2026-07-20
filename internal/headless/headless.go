@@ -12,7 +12,6 @@ import (
 	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
-	"github.com/kumneger0/clispot/internal/youtube"
 )
 
 type UserLibrary struct {
@@ -40,10 +39,6 @@ type SSEMessage struct {
 		CurrentIndex  int     `json:"currentIndex"`
 		SecondsPlayed float64 `json:"secondsPlayed"`
 	} `json:"player,omitempty"`
-	YtDlp *struct {
-		Message string            `json:"message"`
-		LogType youtube.YtDlpLogs `json:"logType"`
-	} `json:"ytDlp,omitempty"`
 }
 
 type PlayRequestBodyType struct {
@@ -114,7 +109,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 					//the code this in this function is only executed when user clicks on
 					// control button on his/her desktop environment
 					//which means it is skip
-					model, _ := m.PlaySelectedMusic(*nextTrack, true)
+					model, _ := m.PlaySelectedMusic(*nextTrack)
 					m.Model = &model
 				}
 			case types.PlayPause:
@@ -131,7 +126,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 				musicQueue.CurrentIndex = prevTrackIndex
 				prevTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
 				if prevTrack != nil {
-					model, _ := m.PlaySelectedMusic(*prevTrack, false)
+					model, _ := m.PlaySelectedMusic(*prevTrack)
 					m.Model = &model
 				}
 			}
@@ -539,7 +534,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 		}
 
-		model, _ = m.PlaySelectedMusic(*trackObject, reqBody.IsSkip)
+		model, _ = m.PlaySelectedMusic(*trackObject)
 		m.Model = &model
 		resp := map[string]any{
 			"status":  "ok",
@@ -706,7 +701,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 							CurrentIndex:  currentIndex,
 							SecondsPlayed: seconds,
 						},
-						YtDlp: nil,
 					}
 
 					msg, _ := json.Marshal(message)

@@ -427,7 +427,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.PlayerProcess != nil {
-			err := m.PlayerProcess.Close(true)
+			err := m.PlayerProcess.Close()
 			if err != nil {
 				slog.Error(err.Error())
 			}
@@ -581,7 +581,7 @@ func (m Model) handleMusicChange(isForward, shouldRemoveTheCacheFile bool) (Mode
 			m = model
 		}
 	}
-	model, cmd := m.PlaySelectedMusic(musicToPlay, shouldRemoveTheCacheFile)
+	model, cmd := m.PlaySelectedMusic(musicToPlay)
 	m = model
 	return m, tea.Batch(cmd, paginationCmd)
 }
@@ -799,7 +799,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		}
 		m.MusicQueueList.Model.SetItems(items)
 		m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
-		return m.PlaySelectedMusic(selectedMusic, false)
+		return m.PlaySelectedMusic(selectedMusic)
 	}
 
 	if m.FocusedOn == SearchBar {
@@ -945,7 +945,7 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 				}
 				return m.PlaySelectedMusic(types.PlaylistTrackObject{
 					Track: track,
-				}, true)
+				})
 			case types.SearchResultPlaylist:
 				playlist, ok := selectedItem.(types.Playlist)
 				if !ok {
@@ -1060,14 +1060,14 @@ func (m Model) getPlaylistItems(playlistID string) tea.Cmd {
 	}
 }
 
-func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject, shouldRemoveTheCacheFile bool) (Model, tea.Cmd) {
+func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var artistNames []string
 	for _, artist := range selectedMusic.Track.Artists {
 		artistNames = append(artistNames, artist.Name)
 	}
 	if m.PlayerProcess != nil {
-		err := m.PlayerProcess.Close(shouldRemoveTheCacheFile)
+		err := m.PlayerProcess.Close()
 		if err != nil {
 			slog.Error(err.Error())
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())

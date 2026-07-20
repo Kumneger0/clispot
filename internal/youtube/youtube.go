@@ -1,15 +1,14 @@
 package youtube
 
 import (
-	"bufio"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -120,7 +119,8 @@ func SearchAndDownloadMusic(
 		return types.SearchAndDownloadMusicMsg{Player: &types.Player{
 			OtoPlayer:         player,
 			ByteCounterReader: counter,
-			Close: func(shouldRemoveTheCacheFile bool) error {
+			Close: func() error {
+				fmt.Println("close called")
 				var firstErr error
 				if player != nil {
 					player.Close()
@@ -151,75 +151,6 @@ func SearchAndDownloadMusic(
 	}
 }
 
-type YtDlpLogs string
-
-const (
-	WARNING  YtDlpLogs = "warning"
-	INFO     YtDlpLogs = "info"
-	ERROR    YtDlpLogs = "error"
-	DOWNLOAD YtDlpLogs = "download"
-	YOUTUBE  YtDlpLogs = "youtube"
-	SKIPPING YtDlpLogs = "skipping"
-)
-
 type ScanFuncArgs struct {
-	Line    string
-	LogType YtDlpLogs
-}
-
-func ReadYtDlpErrReader(reader *io.PipeReader, scanFunc func(args ScanFuncArgs)) {
-	if reader == nil {
-		return
-	}
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(strings.ToLower(line), "skipping") {
-			scanFunc(ScanFuncArgs{
-				Line:    "Skipping " + afterKeyword(line, "skipping"),
-				LogType: SKIPPING,
-			})
-		}
-		if strings.Contains(strings.ToLower(line), "error") {
-			scanFunc(ScanFuncArgs{
-				Line:    afterKeyword(line, "error"),
-				LogType: ERROR,
-			})
-		} else if strings.Contains(strings.ToLower(line), "warning") {
-			scanFunc(ScanFuncArgs{
-				Line:    afterKeyword(line, "warning"),
-				LogType: WARNING,
-			})
-		} else if strings.Contains(strings.ToLower(line), "download") {
-			scanFunc(ScanFuncArgs{
-				Line:    afterKeyword(line, "download"),
-				LogType: DOWNLOAD,
-			})
-		} else if strings.Contains(strings.ToLower(line), "youtube") {
-			scanFunc(ScanFuncArgs{
-				Line:    afterKeyword(line, "youtube"),
-				LogType: YOUTUBE,
-			})
-		} else {
-			scanFunc(ScanFuncArgs{
-				Line:    line,
-				LogType: INFO,
-			})
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		slog.Error(err.Error())
-	}
-}
-
-func afterKeyword(line, keyword string) string {
-	lower := strings.ToLower(line)
-	keyword = strings.ToLower(keyword)
-
-	idx := strings.Index(lower, keyword)
-	if idx == -1 {
-		return line
-	}
-
-	return strings.TrimSpace(line[idx+len(keyword):])
+	Line string
 }

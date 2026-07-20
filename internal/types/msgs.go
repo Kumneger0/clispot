@@ -70,7 +70,7 @@ type SearchAndDownloadMusicMsg struct {
 
 type Player struct {
 	OtoPlayer         *oto.Player
-	Close             func(shouldRemoveTheCacheFile bool) error
+	Close             func() error
 	ByteCounterReader *ByteCounterReader
 }
 

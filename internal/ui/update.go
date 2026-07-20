@@ -797,7 +797,6 @@ func (m Model) handleEnterKey() (Model, tea.Cmd) {
 		if m.MusicQueueList == nil {
 			return m, nil
 		}
-		m.BreadcrumbItems = append(m.BreadcrumbItems, types.Breadcrumb{Name: selectedMusic.Title(), Icon: ""})
 		m.MusicQueueList.Model.SetItems(items)
 		m.MusicQueueList.Model.Select(m.MusicQueueList.GlobalIndex())
 		return m.PlaySelectedMusic(selectedMusic, false)

@@ -26,7 +26,7 @@ class MusicClient:
     def get_stream_url(self, video_id:str) -> str:
         full_url: str = "https://www.youtube.com/watch?v=" + video_id
         options  = {
-            "format": "bestaudio",
+            "format": "bestaudio[abr<=128]/bestaudio",
             "quiet": True,
         }
         with YoutubeDL(options) as ydl:  # pyright: ignore[reportArgumentType]

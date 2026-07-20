@@ -9,6 +9,7 @@ dependencies = [
     "grpcio>=1.82.1",
     "grpcio-tools>=1.82.1",
     "protobuf>=7.35.1",
+    "pyinstaller>=6.21.0",
     "yt-dlp>=2026.7.4",
     "ytmusicapi>=1.12.1",
 ]

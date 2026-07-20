@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -17,10 +16,12 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
+	backend "github.com/kumneger0/clispot/backend"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/headless"
 	logSetup "github.com/kumneger0/clispot/internal/logger"
 	"github.com/kumneger0/clispot/internal/youtube"
+	ytMusicClient "github.com/kumneger0/clispot/internal/yt-music-client"
 	"go.dalton.dog/bubbleup"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,7 +30,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/kumneger0/clispot/internal/mpris"
-	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
 )
@@ -38,10 +38,10 @@ var (
 	Program *tea.Program
 )
 
-func newRootCmd(version string) *cobra.Command {
+func newRootCmd(version string, debug bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clispot",
-		Short: "spotify music player",
+		Short: "youtube music player",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			lockFilePath := filepath.Join(os.TempDir(), "clispot.lock")
 
@@ -72,7 +72,7 @@ func newRootCmd(version string) *cobra.Command {
 			return runRoot(cmd)
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if memFile != "" {
+			if memFile != "" && debug {
 				f, err := os.Create(memFile)
 				if err != nil {
 					log.Fatal("could not create memory profile: ", err)
@@ -106,7 +106,6 @@ func isProcessRunning(pid int) bool {
 
 func showAnotherProcessIsRunning(lockFilePath string) {
 	if runtime.GOOS == "windows" {
-		// Windows doesn't allow us to read the content of the file if the file is acquired by another process
 		fmt.Fprintf(os.Stderr, "Another instance of clispot is already running.\n")
 		return
 	}
@@ -257,34 +256,6 @@ func runRoot(cmd *cobra.Command) error {
 		if dep.ToolName == FFmpeg {
 			coreDepsPath.FFmpeg = dep.Path
 		}
-		if dep.ToolName == YtDlp {
-			coreDepsPath.YtDlp = dep.Path
-		}
-		if dep.ToolName == FFprobe {
-			coreDepsPath.FFprobe = dep.Path
-		}
-	}
-
-	token, err := spotify.ReadUserCredentials()
-
-	if err != nil {
-		slog.Error(err.Error())
-		token, _ = spotify.Authenticate()
-	}
-
-	if token == nil {
-		slog.Error("failed to get user token")
-		fmt.Println("we have failed to get your access token please open up an issue on our github page")
-		os.Exit(1)
-	}
-	if token.ExpiresAt < time.Now().Unix() && token.RefreshToken != "" {
-		token, err = spotify.RefreshToken(token.RefreshToken)
-		if err != nil {
-			slog.Error(err.Error())
-			clispotConfigDir := config.GetConfigDir(runtime.GOOS)
-			fmt.Printf("we have failed to refresh ur token could you try deleting clispot dir by using rm -rf %v  ", clispotConfigDir)
-			os.Exit(1)
-		}
 	}
 
 	ins, messageChan, err := mpris.GetDbusInstance()
@@ -293,26 +264,32 @@ func runRoot(cmd *cobra.Command) error {
 		slog.Error(err.Error())
 	}
 
-	model := ui.Model{
-		GetUserToken: func() *types.UserTokenInfo {
-			token, err := validateToken(token)
-			if err != nil {
-				slog.Error(err.Error())
-				return nil
-			}
-			return token
-		},
-		FocusedOn:     ui.SideView,
-		DBusConn:      ins,
-		MainViewMode:  ui.NormalMode,
-		SpotifyClient: spotify.NewAPIClient(spotify.NewAPIURL(), nil),
-		CoreDepsPath:  coreDepsPath,
+	backendCmd, err := backend.StartBackend(backend.PythonBacked)
+	if err != nil {
+		slog.Error(err.Error())
+		log.Fatal(err)
 	}
-
-	reader, writer := io.Pipe()
-	model.YtDlpErrWriter = writer
-	model.YtDlpErrReader = reader
-
+	defer func() {
+		if backendCmd != nil && backendCmd.Process != nil {
+			_ = backendCmd.Process.Kill()
+		}
+	}()
+	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	defer conn.Close()
+	model := ui.Model{
+		BreadcrumbItems: []types.Breadcrumb{{Name: "Home", Icon: "⌂"}},
+		FocusedOn:       ui.SideView,
+		DBusConn:        ins,
+		MainViewMode:    ui.HomePageMode,
+		YtMusicClient:   client,
+		CoreDepsPath:    coreDepsPath,
+	}
+	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 	if isHeadlessMode {
 		safeModel := ui.SafeModel{
 			Model: &model,
@@ -320,31 +297,15 @@ func runRoot(cmd *cobra.Command) error {
 		headless.StartServer(&safeModel, messageChan)
 		return nil
 	}
-
-	userSavedTracksListItem := spotify.UserSavedTracksListItem{
-		Name: "Liked songs",
+	sideBarItems := []struct{ name, icon string }{{name: "Home", icon: "⌂"}, {name: "Library", icon: ""}}
+	var SideBarMenuList []list.Item
+	for _, item := range sideBarItems {
+		SideBarMenuList = append(SideBarMenuList, types.SidebarItem{
+			Name: item.name,
+			Icon: item.icon,
+		})
 	}
-
-	userPlayList, err := model.SpotifyClient.GetUserPlaylists(token.AccessToken)
-	if err != nil {
-		slog.Error(err.Error())
-		fmt.Fprintln(os.Stdout, err)
-	}
-
-	if userPlayList == nil {
-		slog.Error("GetUserPlaylists returned nil")
-	}
-
-	var items []list.Item
-	if userPlayList != nil {
-		for _, item := range userPlayList.Items {
-			items = append(items, item)
-		}
-	}
-
-	playlists := list.New(append([]list.Item{userSavedTracksListItem}, items...), ui.CustomDelegate{Model: &model}, 10, 20)
 	playlistItems := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
-
 	input := textinput.New()
 	input.Placeholder = "Search tracks, artists, albums..."
 	input.Prompt = "> "
@@ -354,26 +315,14 @@ func runRoot(cmd *cobra.Command) error {
 
 	model.Search = input
 	musicQueueList := list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
+	model.SideBarList = list.New(SideBarMenuList, ui.CustomDelegate{Model: &model}, 10, 20)
 
-	model.Playlist = playlists
 	model.SelectedPlayListItems = playlistItems
 	model.MusicQueueList = &ui.MusicQueueList{
 		Model:          musicQueueList,
 		PaginationInfo: nil,
 	}
-	_, err = exec.LookPath("clispot-lyrics")
-	if err != nil {
-		model.IsLyricsServerInstalled = false
-	} else {
-		model.IsLyricsServerInstalled = true
-	}
 	Program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-
-	go func() {
-		youtube.ReadYtDlpErrReader(model.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
-			Program.Send(args)
-		})
-	}()
 
 	go func() {
 		if messageChan == nil {
@@ -396,30 +345,9 @@ func runRoot(cmd *cobra.Command) error {
 	return nil
 }
 
-func validateToken(token *types.UserTokenInfo) (*types.UserTokenInfo, error) {
-	if token.ExpiresAt > time.Now().Unix() {
-		return token, nil
-	}
-	if token.RefreshToken != "" {
-		token, err := spotify.RefreshToken(token.RefreshToken)
-		if err != nil {
-			slog.Error(err.Error())
-			return nil, err
-		}
-		return token, nil
-	}
-	//this means something went wrong re-authenticate
-	token, err := spotify.Authenticate()
-	if err != nil {
-		return nil, err
-	}
-	return token, nil
-}
-
 type CoreDependency string
 
 const (
-	YtDlp   CoreDependency = "yt-dlp"
 	FFmpeg  CoreDependency = "ffmpeg"
 	FFprobe CoreDependency = "ffprobe"
 )
@@ -433,19 +361,15 @@ type DebsCheckResult struct {
 func doAllDepsInstalled() []DebsCheckResult {
 	ffmpegName := "ffmpeg"
 	ffprobeName := "ffprobe"
-	ytdlpName := "yt-dlp"
 	if runtime.GOOS == "windows" {
 		ffmpegName = "ffmpeg.exe"
 		ffprobeName = "ffprobe.exe"
-		ytdlpName = "yt-dlp.exe"
 	}
 	debsInCacheDirCheckPath := map[CoreDependency]string{
 		FFmpeg:  filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffmpegName),
 		FFprobe: filepath.Join(config.GetCacheDir(runtime.GOOS), "ffmpeg", ffprobeName),
-		YtDlp:   filepath.Join(config.GetCacheDir(runtime.GOOS), ytdlpName),
 	}
-
-	toolNames := []CoreDependency{YtDlp, FFmpeg, FFprobe}
+	toolNames := []CoreDependency{FFmpeg, FFprobe}
 	results := []DebsCheckResult{}
 	for _, toolName := range toolNames {
 		pathFound, err := exec.LookPath(string(toolName))
@@ -498,23 +422,25 @@ var (
 	memFile string
 )
 
-func Execute(version string) error {
-	cmd := newRootCmd(version)
-	cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
-	cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
+func Execute(version string, debug bool) error {
+	cmd := newRootCmd(version, debug)
+	if debug {
+		cmd.PersistentFlags().StringVar(&cpuFile, "cpuprofile", "", "write cpu profile to `file`")
+		cmd.PersistentFlags().StringVar(&memFile, "memprofile", "", "write memory profile to `file`")
 
-	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if cpuFile != "" {
-			f, err := os.Create(cpuFile)
-			if err != nil {
-				return fmt.Errorf("could not create CPU profile: %w", err)
+		cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			if cpuFile != "" {
+				f, err := os.Create(cpuFile)
+				if err != nil {
+					return fmt.Errorf("could not create CPU profile: %w", err)
+				}
+				if err := pprof.StartCPUProfile(f); err != nil {
+					f.Close()
+					return fmt.Errorf("could not start CPU profile: %w", err)
+				}
 			}
-			if err := pprof.StartCPUProfile(f); err != nil {
-				f.Close()
-				return fmt.Errorf("could not start CPU profile: %w", err)
-			}
+			return nil
 		}
-		return nil
 	}
 
 	defaultDebugDir := filepath.Join(config.GetStateDir(runtime.GOOS), "logs")

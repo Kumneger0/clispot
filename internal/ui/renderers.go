@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kumneger0/clispot/internal/spotify"
 	"github.com/kumneger0/clispot/internal/types"
 )
 
@@ -34,9 +33,55 @@ func (d CustomDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	var title string
 	var isSelected bool
+	var icon string
+	var subtitle string
+
 	switch item := item.(type) {
+	case types.SearchResultItem:
+		isSelected = d.Model != nil && (d.Model.FocusedOn == SearchResult) && m.Index() == index
+		title = item.Title()
+		switch item.Kind() {
+		case types.SearchResultTrack:
+			icon = "♫"
+			if t, ok := item.(types.Track); ok && len(t.Artists) > 0 {
+				var names []string
+				for _, a := range t.Artists {
+					names = append(names, a.Name)
+				}
+				subtitle = strings.Join(names, ", ")
+			}
+		case types.SearchResultArtist:
+			icon = "♪"
+			if a, ok := item.(types.Artist); ok {
+				subtitle = fmt.Sprintf("%s — artist", a.Name)
+			} else {
+				subtitle = "Artist"
+			}
+		case types.SearchResultPlaylist:
+			icon = "☰"
+			if p, ok := item.(types.Playlist); ok {
+				if p.Author != "" {
+					subtitle = p.Author
+				} else {
+					subtitle = "Playlist"
+				}
+			}
+		case types.SearchResultAlbum:
+			icon = "◉"
+			if a, ok := item.(types.Album); ok {
+				subtitle = fmt.Sprintf("%s • %s", a.Type, a.Year)
+			}
+		}
 	case types.PlaylistTrackObject:
-		title = item.FilterValue()
+		icon = "♫"
+		title = item.Track.Name
+		if len(item.Track.Artists) > 0 {
+			var names []string
+			for _, a := range item.Track.Artists {
+				names = append(names, a.Name)
+			}
+			subtitle = strings.Join(names, ", ")
+		}
 		if d.Model != nil {
 			switch d.Model.FocusedOn {
 			case QueueList:
@@ -47,53 +92,58 @@ func (d CustomDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 				if !item.IsItFromQueue && item.IsItFromSearch == false {
 					isSelected = m.Index() == index
 				}
-			case SearchResultTrack:
-				if item.IsItFromSearch {
-					isSelected = m.Index() == index
-				}
 			}
 		}
-	case types.Artist:
+	case types.SidebarItem:
+		icon = item.Icon
+		title = item.Name
+		if d.Model != nil && d.Model.FocusedOn == SideView {
+			isSelected = m.Index() == index
+		}
+	case types.HomePageContentItem:
+		icon = "☰"
+		title = item.ItemTitle
+		subtitle = item.Description
+		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
+			isSelected = m.Index() == index
+		}
+	case types.HomePageSectionItem:
+		icon = "▸"
+		title = item.SectionTitle
+		if d.Model != nil && d.Model.FocusedOn == MainView && d.Model.MainViewMode == HomePageMode {
+			isSelected = m.Index() == index
+		}
+	case types.UserSavedTracksListItem:
 		title = item.FilterValue()
 		if d.Model != nil {
-			switch d.Model.FocusedOn {
-			case SearchResultArtist:
-				if item.IsItFromSearch {
-					isSelected = m.Index() == index
-				}
-			case SideView:
-				if !item.IsItFromSearch {
-					isSelected = m.Index() == index
-				}
-			}
+			icon = "♥"
+			isSelected = d.Model.FocusedOn == SideView && m.Index() == index
 		}
-	case types.Playlist, spotify.UserSavedTracksListItem:
-		title = item.FilterValue()
-		if d.Model != nil {
-			playlist, ok := item.(types.Playlist)
-			if !ok {
-				isSelected = d.Model.FocusedOn == SideView && m.Index() == index
-			} else {
-				switch d.Model.FocusedOn {
-				case SearchResultPlaylist:
-					if playlist.IsItFromSearch {
-						isSelected = m.Index() == index
-					}
-				case SideView:
-					if !playlist.IsItFromSearch {
-						isSelected = m.Index() == index
-					}
-				}
-			}
-		}
-	default:
 	}
-	str := lipgloss.NewStyle().Render(title)
-	if isSelected {
-		fmt.Fprint(w, selectedStyle.Render(" "+str+" "))
+
+	availableWidth := m.Width()
+	if availableWidth <= 0 {
+		availableWidth = 40
+	}
+	var rendered string
+	if subtitle != "" && availableWidth > len(title)+5 {
+		if isSelected {
+			rendered = selectedStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
+				selectedStyle.Foreground(lipgloss.Color("#D4D4D8")).Render(fmt.Sprintf(" · %s ", subtitle))
+		} else {
+			rendered = normalStyle.Render(fmt.Sprintf(" %s %s", icon, title)) +
+				dimStyle.Render(fmt.Sprintf(" · %s ", subtitle))
+		}
 	} else {
-		fmt.Fprint(w, normalStyle.Render(" "+str+" "))
+		str := fmt.Sprintf(" %s %s ", icon, title)
+		if isSelected {
+			rendered = selectedStyle.Render(str)
+		} else {
+			rendered = normalStyle.Render(str)
+		}
 	}
+
+	fmt.Fprint(w, rendered)
 }
 
 func renderSearchBar(m *Model, width int) string {
@@ -106,42 +156,41 @@ func renderSearchBar(m *Model, width int) string {
 		Width(width).
 		Padding(0, 1).
 		Margin(0).
-		Border(lipgloss.HiddenBorder()).
-		Background(lipgloss.Color("236")).
-		Foreground(lipgloss.Color("255"))
+		BorderBottom(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(borderNormal).
+		Foreground(textPrimary)
 
 	var content string
 	if m.Search.Value() == "" && !m.Search.Focused() {
-		content = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("Search tracks, artists, albums...")
+		content = dimmerStyle.Render("🔍 Search tracks, artists, playlists...")
 	} else {
 		content = strings.TrimRight(m.Search.View(), "\n")
 	}
 	return strings.TrimRight(box.Render(content), "\n")
 }
 
-func renderNowPlaying(selectedTrack *SelectedTrack, currentPosition, TotalDuration time.Duration) string {
+func renderNowPlaying(m *Model, currentPosition, TotalDuration time.Duration) string {
+	selectedTrack := m.SelectedTrack
 	if selectedTrack == nil {
 		return ""
 	}
-	var stringBuilder strings.Builder
 	var artistNames []string
 	var artists = selectedTrack.Track.Track.Artists
 	for _, artist := range artists {
 		artistNames = append(artistNames, artist.Name)
 	}
-	artistName := strings.Join(artistNames, ",")
-	stringBuilder.WriteString(artistName)
-
+	artistName := strings.Join(artistNames, ", ")
 	trackName := selectedTrack.Track.Track.Name
 
 	var likedIndicator string
 	if selectedTrack.isLiked {
-		likedIndicator = "❤️"
+		likedIndicator = " ♥"
 	} else {
-		likedIndicator = "💔"
+		likedIndicator = ""
 	}
 
-	barWidth := 40
+	barWidth := m.Width
 	var progressFloat float64
 	if TotalDuration == 0 {
 		progressFloat = 1.0
@@ -150,42 +199,38 @@ func renderNowPlaying(selectedTrack *SelectedTrack, currentPosition, TotalDurati
 	}
 	progress := max(min(int(math.Max(progressFloat, 1)), barWidth), 0)
 
-	left := strings.Repeat("▰", progress)
-	rightCount := max(barWidth-progress, 0)
-	right := strings.Repeat("▱", rightCount)
+	filled := lipgloss.NewStyle().Foreground(progressFilled).Render(strings.Repeat("━", progress))
+	empty := lipgloss.NewStyle().Foreground(progressEmpty).Render(strings.Repeat("─", max(barWidth-progress, 0)))
 
-	return fmt.Sprintf("▶ %s — %s %s / %s\n%s %s\n",
-		trackName,
-		artistName,
-		formatTime(currentPosition),
-		formatTime(TotalDuration),
-		left+right,
-		likedIndicator,
+	trackInfo := lipgloss.NewStyle().Foreground(textPrimary).Bold(true).Render(
+		fmt.Sprintf("▶ %s", trackName),
+	)
+	artistInfo := dimStyle.Render(fmt.Sprintf(" — %s", artistName))
+	timeInfo := dimStyle.Render(fmt.Sprintf("  %s / %s", formatTime(currentPosition), formatTime(TotalDuration)))
+	likeInfo := lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Render(likedIndicator)
+
+	return fmt.Sprintf("%s%s%s%s\n%s%s\n",
+		trackInfo,
+		artistInfo,
+		timeInfo,
+		likeInfo,
+		filled, empty,
 	)
 }
 
-func renderPlayerControls(isLyricsServerInstalled bool) string {
-	btn := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("230")).
-		Background(lipgloss.Color("237"))
+func renderPlayerControls() string {
+	key := lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+	sep := dimmerStyle.Render("  │  ")
+	label := lipgloss.NewStyle().Foreground(textSecondary)
 
-	key := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("250"))
-	label := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	var controls []string
-	prevBtn := btn.Render(key.Render("⏮") + " " + label.Render("Prev\n[b]"))
-	playBtn := btn.Render(key.Render("⏯") + " " + label.Render("Play/Pause\n[space]"))
-	nextBtn := btn.Render(key.Render("⏭") + " " + label.Render("Next\n[n]"))
-	quitBtn := btn.Render(key.Render("✖") + " " + label.Render("Quit\n[q]"))
-	likeUnlikeBtn := btn.Render(key.Render("❤️") + " " + label.Render("like/unlike\n[l]"))
-
-	controls = append(controls, prevBtn, playBtn, nextBtn, quitBtn, likeUnlikeBtn)
-	if isLyricsServerInstalled {
-		lyricsIcon := "📝"
-		lyricsBtn := btn.Render(key.Render(lyricsIcon) + " " + label.Render("Lyrics\n[ctrl+l]"))
-		controls = append(controls, lyricsBtn)
-	}
-	row := lipgloss.JoinHorizontal(lipgloss.Top, controls...)
-	return row
+	var parts []string
+	parts = append(parts,
+		key.Render("⏮")+label.Render(" prev")+dimmerStyle.Render("(b)"),
+		key.Render("⏯")+label.Render(" play/pause")+dimmerStyle.Render("(space)"),
+		key.Render("⏭")+label.Render(" next")+dimmerStyle.Render("(n)"),
+		key.Render("♥")+label.Render(" like")+dimmerStyle.Render("(l)"),
+		key.Render("✕")+label.Render(" quit")+dimmerStyle.Render("(q)"),
+		key.Render("📝")+label.Render(" lyrics")+dimmerStyle.Render("(ctrl+l)"),
+	)
+	return strings.Join(parts, sep)
 }

@@ -1,42 +1,22 @@
-# clispot
+# yt-music-tui
 
-listen to your favorite spotify songs right from your terminal. **No Spotify Premium Required!**
+listen to youtube music in ur terminal no cap
 
-## 📖 Documentation
+## docs
 
-For detailed usage instructions, installation guide, keyboard shortcuts, and more, please see the [Documentation](https://clispot.kumneger.dev).
+check the [docs](https://ytmusic-tui.kumneger.dev) for the full lowdown on how to use this
 
-Curious how it works? Read the [deep dive article](https://kumneger.dev/blog/spotify-for-your-terminal).
+## todo
 
-## TODO
-
-- [x] like/unlike Song
+- [x] like/unlike songs
 - [ ] add to playlist
-- [x] advanced search
-  - [x] filter search by type (track, album, artist)
-  - [x] jump to artist/playlist view from results
-- [x] queue Management
-  - [x] view track queue
-  - [x] add track to queue
-  - [x] remove track from queue
-- [x] spotify library browsing
-  - [x] liked songs
-  - [ ] saved albums
-  - [x] followed artists
-  - [x] saved playlist
+- [x] search with filters
+- [x] queue management
 
-## Contributing
+## contributing
 
-We welcome contributions to clispot! For detailed guidelines, please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) file.
+wanna help? check [contributing.md](CONTRIBUTING.md) for the details. found a bug or got ideas? [open an issue](https://github.com/Kumneger0/clispot/issues)
 
-If you encounter any issues or have suggestions, feel free to open an issue on our GitHub repository. This is also a great way to contribute to the project.
+## license
 
-Thank you for your interest in improving clispot!
-
-## 🤝 Code of Conduct
-
-We are committed to providing a welcoming and inclusive experience for everyone. We expect all participants in our community to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Please read it to understand what behaviors will and will not be tolerated.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+mit license see [license](LICENSE) file for details

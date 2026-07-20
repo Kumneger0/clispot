@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/kumneger0/clispot/cmd"
@@ -8,10 +9,12 @@ import (
 
 var (
 	version = ""
+	Debug   = "false"
 )
 
 func main() {
-	err := cmd.Execute(version)
+	fmt.Println("debug", Debug)
+	err := cmd.Execute(version, Debug == "true")
 	if err != nil {
 		slog.Error(err.Error())
 	}

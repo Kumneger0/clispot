@@ -7,11 +7,14 @@ listen to youtube music in ur terminal no cap
 check the [docs](https://ytmusic-tui.kumneger.dev) for the full lowdown on how to use this
 
 ## todo
-
-- [x] like/unlike songs
-- [ ] add to playlist
+- [x] home page
 - [x] search with filters
 - [x] queue management
+- [ ] library support
+- [ ] like/unlike songs
+- [ ] add to playlist
+- [ ] playlist management
+- [ ] more browsing features
 
 ## contributing
 

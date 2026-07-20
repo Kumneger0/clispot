@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/ui"
 	"github.com/kumneger0/clispot/internal/youtube"
@@ -109,7 +111,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 				musicQueue.CurrentIndex = nextTrackIndex
 				nextTrack := musicQueue.Tracks[musicQueue.CurrentIndex]
 				if nextTrack != nil {
-					//the code this in this function is only excuted when user clicks on
+					//the code this in this function is only executed when user clicks on
 					// control button on his/her desktop environment
 					//which means it is skip
 					model, _ := m.PlaySelectedMusic(*nextTrack, true)
@@ -152,15 +154,10 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		m.Mu.RLock()
 		defer m.Mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
-		userPlaylist, err := m.SpotifyClient.GetUserPlaylists(userToken.AccessToken)
+		userPlaylist, err := m.YtMusicClient.GetUserPlaylists(ctx, &musicpb.GetUserPlaylistsRequest{})
 		if err != nil {
 			slog.Error("GetUserPlaylists failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch user playlists"}`, http.StatusInternalServerError)
@@ -172,19 +169,19 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		followedArtists, err := m.SpotifyClient.GetFollowedArtist(userToken.AccessToken)
+		followedArtists, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
 		if err != nil {
-			slog.Error("GetFollowedArtist failed: " + err.Error())
+			slog.Error("GetFollowedArtists failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch followed artists"}`, http.StatusInternalServerError)
 			return
 		}
 		if followedArtists == nil {
-			slog.Error("GetFollowedArtist returned nil")
+			slog.Error("GetFollowedArtists returned nil")
 			http.Error(w, `{"error":"no artist data returned"}`, http.StatusInternalServerError)
 			return
 		}
 
-		albums, err := m.SpotifyClient.GetUserSavedAlbums(userToken.AccessToken)
+		albums, err := m.YtMusicClient.GetUserSavedAlbums(ctx, &musicpb.GetUserSavedAlbumsRequest{})
 		if err != nil {
 			slog.Error("GetUserSavedAlbums failed: " + err.Error())
 			http.Error(w, `{"error":"failed to fetch albums"}`, http.StatusInternalServerError)
@@ -197,14 +194,27 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		var savedAlbums []types.Album
+		for _, album := range albums.Albums {
+			savedAlbums = append(savedAlbums, types.MapAlbumToAlbum(album))
+		}
 
-		for _, album := range albums.Items {
-			savedAlbums = append(savedAlbums, album.Album)
+		var playlists []types.Playlist
+		for _, p := range userPlaylist.Playlists {
+			playlists = append(playlists, types.MapPlaylistToPlaylist(p))
+		}
+
+		var artists []types.Artist
+		for _, a := range followedArtists.Artists {
+			artists = append(artists, types.Artist{
+				ID:     a.ChannelId,
+				Name:   a.Name,
+				Images: types.MapThumbnailsToImages(a.Thumbnails),
+			})
 		}
 
 		userLibrary := &UserLibrary{
-			Playlist:           userPlaylist.Items,
-			UserFollowedArtist: followedArtists.Artists.Items,
+			Playlist:           playlists,
+			UserFollowedArtist: artists,
 			Album:              savedAlbums,
 		}
 
@@ -238,16 +248,11 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"error":"missing required query param: type"}`, http.StatusBadRequest)
 			return
 		}
-
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		if TracksType(queryType) == FollowedArtist {
-			artistSongs, err := m.SpotifyClient.GetArtistsTopTrack(userToken.AccessToken, id)
+			artistSongs, err := m.YtMusicClient.GetArtistTopTracks(ctx, &musicpb.GetArtistTopTracksRequest{ChannelId: id})
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch artist tracks"}`, http.StatusInternalServerError)
@@ -257,10 +262,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			var tracks []*types.PlaylistTrackObject
 			for _, track := range artistSongs.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   track,
+					Track: types.MapSongToTrack(track),
 				})
 			}
 
@@ -281,14 +283,21 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == PlaylistType {
-			playlistItems, err := m.SpotifyClient.GetPlaylistItems(userToken.AccessToken, id, nil)
+			playlistItems, err := m.YtMusicClient.GetPlaylistItems(ctx, &musicpb.GetPlaylistItemsRequest{PlaylistId: id})
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch playlist items"}`, http.StatusInternalServerError)
 				return
 			}
 
-			resp := &TracksResponse{Tracks: playlistItems.Items}
+			var tracks []*types.PlaylistTrackObject
+			for _, track := range playlistItems.Tracks {
+				tracks = append(tracks, &types.PlaylistTrackObject{
+					Track: types.MapSongToTrack(track),
+				})
+			}
+
+			resp := &TracksResponse{Tracks: tracks}
 			data, err := json.Marshal(resp)
 			if err != nil {
 				slog.Error(err.Error())
@@ -305,7 +314,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == LikedSongs {
-			savedTracks, err := m.SpotifyClient.GetUserSavedTracks(userToken.AccessToken, nil)
+			savedTracks, err := m.YtMusicClient.GetUserSavedTracks(ctx, &musicpb.GetUserSavedTracksRequest{})
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch saved tracks"}`, http.StatusInternalServerError)
@@ -313,12 +322,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			var tracks []*types.PlaylistTrackObject
-			for _, item := range savedTracks.Items {
+			for _, item := range savedTracks.Tracks {
 				tracks = append(tracks, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   item.Track,
+					Track: types.MapSongToTrack(item),
 				})
 			}
 
@@ -339,7 +345,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if TracksType(queryType) == AlbumTracks {
-			albumTracks, err := m.SpotifyClient.GetAlbumTracks(userToken.AccessToken, id)
+			albumTracks, err := m.YtMusicClient.GetAlbumTracks(ctx, &musicpb.GetAlbumTracksRequest{BrowseId: id})
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to fetch album tracks"}`, http.StatusInternalServerError)
@@ -347,12 +353,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			var trackObject []*types.PlaylistTrackObject
-			for _, item := range albumTracks.Items {
+			for _, item := range albumTracks.Tracks {
 				trackObject = append(trackObject, &types.PlaylistTrackObject{
-					AddedAt: "",
-					AddedBy: nil,
-					IsLocal: false,
-					Track:   item,
+					Track: types.MapSongToTrack(item),
 				})
 			}
 
@@ -387,21 +390,53 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			http.Error(w, `{"error":"please provide a search query"}`, http.StatusBadRequest)
 			return
 		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			slog.Error("failed to get userToken")
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
-		searchResults, err := m.SpotifyClient.GetSearchResults(userToken.AccessToken, query)
+		searchResults, err := m.YtMusicClient.GetSearchResults(ctx, &musicpb.GetSearchResultsRequest{Query: query})
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to search"}`, http.StatusInternalServerError)
 			return
 		}
-		data, err := json.Marshal(searchResults)
+
+		var tracks []types.Track
+		for _, s := range searchResults.Songs {
+			tracks = append(tracks, types.MapSearchResultSongToTrack(s))
+		}
+		var artists []types.Artist
+		for _, a := range searchResults.Artists {
+			artists = append(artists, types.Artist{
+				ID:     a.BrowseId,
+				Name:   a.Name,
+				Images: types.MapThumbnailsToImages(a.Thumbnails),
+			})
+		}
+		var playlists []types.Playlist
+		for _, p := range searchResults.Playlists {
+			playlists = append(playlists, types.Playlist{
+				ID:          p.BrowseId,
+				Name:        p.Title,
+				Description: p.ItemCount,
+				Images:      types.MapThumbnailsToImages(p.Thumbnails),
+				Author:      p.Author,
+			})
+		}
+		var albums []types.Album
+		for _, al := range searchResults.Albums {
+			albums = append(albums, types.Album{
+				ID:      al.BrowseId,
+				Name:    al.Title,
+				Artists: types.MapArtistsToArtists(al.Artists),
+				Images:  types.MapThumbnailsToImages(al.Thumbnails),
+				Year:    al.Year,
+				Type:    al.Type,
+			})
+		}
+
+		resp := &types.SearchResponse{}
+
+		data, err := json.Marshal(resp)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
@@ -467,12 +502,6 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			return
 		}
 
-		userToken := m.GetUserToken()
-		if userToken == nil {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-
 		model, _ := m.HandleMusicPausePlay()
 		m.Model = &model
 
@@ -489,7 +518,10 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		}
 
 		if trackObject == nil {
-			track, err := m.SpotifyClient.GetTrack(userToken.AccessToken, reqBody.TrackID)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			track, err := m.YtMusicClient.GetTrack(ctx, &musicpb.GetTrackRequest{VideoId: reqBody.TrackID})
 			if err != nil {
 				slog.Error(err.Error())
 				http.Error(w, `{"error":"failed to get track"}`, http.StatusInternalServerError)
@@ -503,10 +535,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 
 			trackObject = &types.PlaylistTrackObject{
-				Track:   *track,
-				AddedAt: "",
-				AddedBy: nil,
-				IsLocal: false,
+				Track: types.MapSongToTrack(track.Track),
 			}
 		}
 
@@ -544,7 +573,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		data, err := json.Marshal(musicQueue)
 		if err != nil {
 			slog.Error(err.Error())
-			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
+			http.Error(w, `{"message":"failed to encode response", "status":"error"}`, http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -563,7 +592,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		if err != nil {
 			slog.Error("failed to decode request body: " + err.Error())
 			fmt.Println("failed to add to queue", reqBody)
-			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
+			http.Error(w, `{"message":"failed to decode request body", "status":"error"}`, http.StatusBadRequest)
 			return
 		}
 
@@ -576,7 +605,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		})
 		if err != nil {
 			slog.Error(err.Error())
-			http.Error(w, `{"message":"failed to encode response", status:"error"}`, http.StatusBadRequest)
+			http.Error(w, `{"message":"failed to encode response", "status":"error"}`, http.StatusBadRequest)
 			return
 		}
 		_, err = w.Write(data)
@@ -593,7 +622,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		err := json.NewDecoder(r.Body).Decode(&reqBody)
 		if err != nil {
 			slog.Error("failed to decode request body: " + err.Error())
-			http.Error(w, `{"message":"failed to decode request body", status:"error"}`, http.StatusBadRequest)
+			http.Error(w, `{"message":"failed to decode request body", "status":"error"}`, http.StatusBadRequest)
 			return
 		}
 		var index int = -1
@@ -604,7 +633,7 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 			}
 		}
 		if index == -1 {
-			http.Error(w, `{"message":"track not found", status:"error"}`, http.StatusNotFound)
+			http.Error(w, `{"message":"track not found", "status":"error"}`, http.StatusNotFound)
 			return
 		}
 
@@ -656,32 +685,8 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
-		msgCh := make(chan youtube.ScanFuncArgs, 10)
-
-		go func() {
-			youtube.ReadYtDlpErrReader(m.YtDlpErrReader, func(args youtube.ScanFuncArgs) {
-				msgCh <- args
-			})
-		}()
-
 		for {
 			select {
-			case msg := <-msgCh:
-				m.Mu.Lock()
-				message := SSEMessage{
-					Player: nil,
-					YtDlp: &struct {
-						Message string            "json:\"message\""
-						LogType youtube.YtDlpLogs "json:\"logType\""
-					}{
-						Message: msg.Line,
-						LogType: msg.LogType,
-					},
-				}
-				response, _ := json.Marshal(message)
-				fmt.Fprintf(w, "data: %s\n\n", response)
-				flusher.Flush()
-				m.Mu.Unlock()
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
@@ -693,9 +698,9 @@ func StartServer(m *ui.SafeModel, dbusMessageChan *chan types.DBusMessage) {
 
 					message := SSEMessage{
 						Player: &struct {
-							IsPlaying     bool    "json:\"isPlaying\""
-							CurrentIndex  int     "json:\"currentIndex\""
-							SecondsPlayed float64 "json:\"secondsPlayed\""
+							IsPlaying     bool    `json:"isPlaying"`
+							CurrentIndex  int     `json:"currentIndex"`
+							SecondsPlayed float64 `json:"secondsPlayed"`
 						}{
 							IsPlaying:     isPlaying,
 							CurrentIndex:  currentIndex,

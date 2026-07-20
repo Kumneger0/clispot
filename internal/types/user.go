@@ -1,39 +1,5 @@
 package types // nolint:revive
 
-type SpotifyUser struct {
-	ExternalURLs struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Href        string `json:"href"`
-	ID          string `json:"id"`
-	Type        string `json:"type"`
-	URI         string `json:"uri"`
-	DisplayName string `json:"display_name,omitempty"`
-}
-
-type SpotifyUserProfile struct {
-	Country         string `json:"country"`
-	DisplayName     string `json:"display_name"`
-	Email           string `json:"email"`
-	ExplicitContent struct {
-		FilterEnabled bool `json:"filter_enabled"`
-		FilterLocked  bool `json:"filter_locked"`
-	} `json:"explicit_content"`
-	ExternalURLs struct {
-		Spotify string `json:"spotify"`
-	} `json:"external_urls"`
-	Followers struct {
-		Href  string `json:"href"`
-		Total int    `json:"total"`
-	} `json:"followers"`
-	Href    string         `json:"href"`
-	ID      string         `json:"id"`
-	Images  []SpotifyImage `json:"images"`
-	Product string         `json:"product"`
-	Type    string         `json:"type"`
-	URI     string         `json:"uri"`
-}
-
 type UserTokenInfo struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
@@ -42,3 +8,86 @@ type UserTokenInfo struct {
 	Scope        string `json:"scope"`
 	ExpiresAt    int64  `json:"expires_at,omitempty"`
 }
+
+// UserSavedTracksListItem is a simple sidebar item representing the user's liked songs.
+type UserSavedTracksListItem struct {
+	Name string
+}
+
+func (u UserSavedTracksListItem) FilterValue() string {
+	return u.Name
+}
+
+func (u UserSavedTracksListItem) Title() string {
+	return u.Name
+}
+
+type SidebarItem struct {
+	Name string
+	Icon string
+}
+
+func (h SidebarItem) FilterValue() string {
+	return h.Name
+}
+
+func (h SidebarItem) Title() string {
+	return h.Name
+}
+
+type HomePageSectionItem struct {
+	SectionTitle string
+	Index        int
+}
+
+func (h HomePageSectionItem) FilterValue() string {
+	return h.SectionTitle
+}
+
+func (h HomePageSectionItem) Title() string {
+	return h.SectionTitle
+}
+
+type HomePageContentItem struct {
+	ItemTitle   string
+	PlaylistID  string
+	Description string
+}
+
+func (h HomePageContentItem) FilterValue() string {
+	return h.ItemTitle
+}
+
+func (h HomePageContentItem) Title() string {
+	return h.ItemTitle
+}
+
+func (h HomePageContentItem) Subtitle() string {
+	return h.Description
+}
+
+type Breadcrumb struct{ Name, Icon string }
+
+type SearchResultType int
+
+const (
+	SearchResultTrack SearchResultType = iota
+	SearchResultArtist
+	SearchResultPlaylist
+	SearchResultAlbum
+)
+
+type SearchResultItem interface {
+	Title() string
+	FilterValue() string
+	Kind() SearchResultType
+}
+
+func (t Track) Title() string             { return t.Name }
+func (t Track) FilterValue() string       { return t.Name }
+func (t Track) Kind() SearchResultType    { return SearchResultTrack }
+func (a Artist) Kind() SearchResultType   { return SearchResultArtist }
+func (p Playlist) Kind() SearchResultType { return SearchResultPlaylist }
+func (a Album) Title() string             { return a.Name }
+func (a Album) FilterValue() string       { return a.Name }
+func (a Album) Kind() SearchResultType    { return SearchResultAlbum }

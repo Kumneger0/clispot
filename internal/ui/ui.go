@@ -1,9 +1,10 @@
 package ui
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"os"
+	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
-	"github.com/kumneger0/clispot/internal/spotify"
+	musicpb "github.com/kumneger0/clispot/gen"
 	"github.com/kumneger0/clispot/internal/types"
 	"github.com/kumneger0/clispot/internal/youtube"
 	"go.dalton.dog/bubbleup"
@@ -24,15 +25,12 @@ import (
 type FocusedOn string
 
 const (
-	SideView             FocusedOn = "SIDE_VIEW"
-	MainView             FocusedOn = "MAIN_VIEW"
-	Player               FocusedOn = "PLAYER"
-	SearchBar            FocusedOn = "SEARCH_BAR"
-	QueueList            FocusedOn = "QUEUE_LIST"
-	SearchResult         FocusedOn = "SEARCH_RESULT"
-	SearchResultTrack    FocusedOn = "SEARCH_RESULT_TRACK"
-	SearchResultArtist   FocusedOn = "SEARCH_RESULT_ARTIST"
-	SearchResultPlaylist FocusedOn = "SEARCH_RESULT_PLAYLIST"
+	SideView     FocusedOn = "SIDE_VIEW"
+	MainView     FocusedOn = "MAIN_VIEW"
+	Player       FocusedOn = "PLAYER"
+	SearchBar    FocusedOn = "SEARCH_BAR"
+	QueueList    FocusedOn = "QUEUE_LIST"
+	SearchResult FocusedOn = "SEARCH_RESULT"
 )
 
 type MainViewMode string
@@ -44,8 +42,16 @@ const (
 	//at this time the previous are gone b/c i was sharing  this main new to show items in playlist and the search result
 	// so by adding this MainViewMode we can switch b/c modes so that we keep the result in memory
 	// meaning we can switch b/n search result and normal mode
-	NormalMode MainViewMode = "NORMAL_MODE"
-	LyricsMode MainViewMode = "LYRICS_MODE"
+	NormalMode   MainViewMode = "NORMAL_MODE"
+	LyricsMode   MainViewMode = "LYRICS_MODE"
+	HomePageMode MainViewMode = "HOME_PAGE_MODE"
+)
+
+type HomePageViewMode int
+
+const (
+	HomePageSectionView HomePageViewMode = iota
+	HomePageContentView
 )
 
 type SpotifySearchResult struct {
@@ -55,8 +61,6 @@ type SpotifySearchResult struct {
 type SelectedTrack struct {
 	isLiked bool
 	Track   *types.PlaylistTrackObject
-	//lets store skip count if it reachs 5 which means we are not able to find the matching song on youtube
-	SkipCount int
 }
 
 type MusicQueueList struct {
@@ -65,17 +69,15 @@ type MusicQueueList struct {
 }
 
 type Model struct {
-	Playlist              list.Model
+	BreadcrumbItems       []types.Breadcrumb
+	SideBarList           list.Model
 	Alert                 bubbleup.AlertModel
 	SelectedPlayListItems list.Model
 	LyricsView            viewport.Model
 	FocusedOn             FocusedOn
 	MainViewMode
-	PlayerProcess       *youtube.Player
-	LyricsServerProcess *os.Process
+	PlayerProcess       *types.Player
 	SelectedTrack       *SelectedTrack
-	YtDlpErrWriter      *io.PipeWriter
-	YtDlpErrReader      *io.PipeReader
 	PlayedSeconds       float64
 	Height              int
 	Width               int
@@ -84,19 +86,22 @@ type Model struct {
 	PlayerSectionHeight int
 	Search              textinput.Model
 	MusicQueueList      *MusicQueueList
-	SpotifyClient       *spotify.APIClientImpl
+	YtMusicClient       musicpb.MusicServiceClient
 	DBusConn            *Instance
 	//actually i need this b/c if user searches and selects playlist or artist
 	//at that time when he selects artist or playlist the search were hidden from mainView
 	//so that if search again we can show the previous result by comparing the query
 	// TODO: find a better way than this looks very ugly
-	SearchQuery                              string
-	IsSearchLoading, IsLyricsServerInstalled bool
-	SearchResult                             *SpotifySearchResult
-	GetUserToken                             func() *types.UserTokenInfo
-	PaginationInfo                           *types.PaginationInfo
-	IsOnPagination                           bool
-	CoreDepsPath                             *youtube.CoreDepsPath
+	SearchQuery string
+	// SearchResult                             *SpotifySearchResult
+	IsSearchLoading  bool
+	SearchResult     list.Model
+	PaginationInfo   *types.PaginationInfo
+	IsOnPagination   bool
+	CoreDepsPath     *youtube.CoreDepsPath
+	HomePageData     *musicpb.GetHomePageResponse
+	HomePageList     list.Model
+	HomePageViewMode HomePageViewMode
 }
 
 type Instance struct {
@@ -110,90 +115,131 @@ type SafeModel struct {
 }
 
 func (m Model) Init() tea.Cmd {
-	var cmd tea.Cmd
-	userTokenInfo := m.GetUserToken()
-	if userTokenInfo != nil {
-		cmd = func() tea.Msg {
-			followedArtist, err := m.SpotifyClient.GetFollowedArtist(userTokenInfo.AccessToken)
-			if err != nil {
-				return nil
+	cmd := func() tea.Msg {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		followedArtist, err := m.YtMusicClient.GetFollowedArtists(ctx, &musicpb.GetFollowedArtistsRequest{})
+		if err != nil {
+			return nil
+		}
+		return followedArtist
+	}
+	homePageFeed := func() tea.Msg {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		homePage, err := m.YtMusicClient.GetHomePage(ctx, &musicpb.GetHomePageRequest{})
+		if err != nil {
+			slog.Error(err.Error())
+			return types.HomePageResponseMsg{
+				Response: nil,
+				Err:      err,
 			}
-			return followedArtist
+		}
+		return types.HomePageResponseMsg{
+			Response: homePage,
+			Err:      nil,
 		}
 	}
-	return tea.Batch(cmd, m.Alert.Init())
+	return tea.Batch(cmd, m.Alert.Init(), SendLoadingCmd(), homePageFeed)
+}
+
+func renderBreadcrumbs(items []types.Breadcrumb) string {
+	if len(items) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(items)*2)
+	for i, item := range items {
+		label := item.Name
+		if item.Icon != "" {
+			label = fmt.Sprintf("%s %s", item.Icon, item.Name)
+		}
+		itemStyle := lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+		if i == len(items)-1 {
+			itemStyle = itemStyle.Foreground(textPrimary).Bold(true)
+		} else {
+			itemStyle = itemStyle.Foreground(accentColor)
+		}
+
+		parts = append(parts, itemStyle.Render(label))
+		if i < len(items)-1 {
+			parts = append(parts, lipgloss.NewStyle().Foreground(textDim).Render("▸"))
+		}
+	}
+
+	return lipgloss.NewStyle().Padding(0, 0, 0, 1).Render(strings.Join(parts, " "))
 }
 
 func (m Model) View() string {
-	m.Playlist.Title = "Playlist"
-	m.SelectedPlayListItems.Title = "Tracks"
+	m.SideBarList.Title = "Youtube Music tui"
 	m.MusicQueueList.Model.Title = "Queue"
-	removeListDefaults(&m.Playlist)
+	removeListDefaults(&m.SideBarList)
 	removeListDefaults(&m.SelectedPlayListItems)
-	if m.MusicQueueList != nil {
-		removeListDefaults(&m.MusicQueueList.Model)
-	}
-
+	removeListDefaults(&m.SearchResult)
+	removeListDefaults(&m.HomePageList)
+	removeListDefaults(&m.MusicQueueList.Model)
+	m.SearchResult.SetShowTitle(false)
+	m.SelectedPlayListItems.SetShowTitle(false)
+	m.HomePageList.SetShowTitle(false)
 	dimensions := calculateLayoutDimensions(&m)
-
-	playlistView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SideView).Render(m.Playlist.View())
-
+	sideBarView := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, SideView).Render(m.SideBarList.View())
 	searchBar := renderSearchBar(&m, dimensions.mainWidth)
+	breadcrumb := renderBreadcrumbs(m.BreadcrumbItems)
 	var mainView string
 	if m.IsSearchLoading {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, "loading...."))
+		loadingText := dimmerStyle.Render("  ⟳ Loading...")
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, loadingText),
+		)
 	} else if m.MainViewMode == SearchResultMode {
-		trackView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultTrack).Render(m.SearchResult.Tracks.View())
-		artistView := getStyle(&m, dimensions.sidebarWidth, dimensions.contentHeight, SearchResultArtist).Render(m.SearchResult.Artists.View())
-		playlistView := getStyle(&m, dimensions.mainWidth/4, dimensions.contentHeight, SearchResultPlaylist).Render(m.SearchResult.Playlists.View())
-		searchResultView := lipgloss.JoinVertical(lipgloss.Top, searchBar, lipgloss.JoinVertical(lipgloss.Top, "Search Result", lipgloss.JoinHorizontal(lipgloss.Top, trackView, artistView, playlistView)))
+		height := dimensions.contentHeight - (dimensions.contentHeight * 10 / 100)
+		width := dimensions.mainWidth - (dimensions.mainWidth * 10 / 100)
+		searchView := getStyle(&m, height, width, SearchResult).Render(m.SearchResult.View())
+		resultHeader := titleStyle.Render("  Search Results")
+		searchResultView := lipgloss.JoinVertical(lipgloss.Top,
+			searchBar,
+			resultHeader,
+			lipgloss.JoinHorizontal(lipgloss.Top, searchView),
+		)
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(searchResultView)
 	} else if m.MainViewMode == LyricsMode {
-		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.LyricsView.View()))
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, m.LyricsView.View()),
+		)
+	} else if m.MainViewMode == HomePageMode {
+		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).Render(
+			lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.HomePageList.View())),
+		)
 	} else {
 		mainView = getStyle(&m, dimensions.contentHeight, dimensions.mainWidth, MainView).
-			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, m.SelectedPlayListItems.View()))
+			Render(lipgloss.JoinVertical(lipgloss.Top, searchBar, breadcrumb, lipgloss.NewStyle().Padding(1, 0, 0, 0).Render(m.SelectedPlayListItems.View())))
 	}
 
 	var playingView string
 
 	if m.SelectedTrack != nil && m.SelectedTrack.Track != nil {
-		var stringBuilder strings.Builder
-		stringBuilder.WriteString(m.SelectedTrack.Track.Track.Name)
-		stringBuilder.WriteString(" ")
-		var artistNames []string
-		for _, artist := range m.SelectedTrack.Track.Track.Artists {
-			artistNames = append(artistNames, artist.Name)
-		}
-		artistName := strings.Join(artistNames, ",")
-		stringBuilder.WriteString(artistName)
 		playedSeconds := int(m.PlayedSeconds)
 		currentPosition := time.Second * time.Duration(playedSeconds)
 		total := time.Duration(m.SelectedTrack.Track.Track.DurationMS) * time.Millisecond
-		playingView = renderNowPlaying(m.SelectedTrack, currentPosition, total)
+		playingView = renderNowPlaying(&m, currentPosition, total)
 	}
 
-	controls := renderPlayerControls(m.IsLyricsServerInstalled)
-	playingCombined := strings.TrimSpace(playingView) + "\n\n" + controls
+	controls := renderPlayerControls()
+	playingCombined := strings.TrimSpace(playingView) + "\n" + controls
 
-	playing := getPlayerStyles(&m, dimensions).Foreground(lipgloss.Color("21")).Render(playingCombined)
-
+	playing := getPlayerStyles(&m, dimensions).
+		Foreground(playerFg).
+		Render(playingCombined)
 	queueList := getStyle(&m, dimensions.contentHeight, dimensions.sidebarWidth, QueueList).Render(m.MusicQueueList.View())
-
 	combinedView := lipgloss.JoinVertical(lipgloss.Top,
-		lipgloss.JoinHorizontal(lipgloss.Top, playlistView, mainView, queueList),
+		lipgloss.JoinHorizontal(lipgloss.Top, sideBarView, mainView, queueList),
 		playing,
 	)
 	return m.Alert.Render(combinedView)
 }
 
-// formatTime formats a duration as "MM:SS" with minutes and seconds zero-padded to two digits.
-// Negative durations are treated as zero.
 func formatTime(d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	totalSeconds := int(d.Seconds())
+	totalSeconds := int(time.Duration(math.Max(float64(d), 0)).Seconds())
 	minutes := totalSeconds / 60
 	seconds := totalSeconds % 60
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
@@ -207,16 +253,14 @@ type layoutDimensions struct {
 }
 
 func calculateLayoutDimensions(m *Model) layoutDimensions {
-	sidebarWidth := m.Width * 20 / 100
-	inputHeight := min(max(m.Height*6/100, 3), 8)
-
+	sidebarWidth := m.Width * 22 / 100
+	inputHeight := min(max(m.Height*10/100, 2), 3)
 	mainCenterArea := (m.Width - (sidebarWidth * 2))
 
-	//main area is basically total width minus left sidebar minus right sidebar and
 	return layoutDimensions{
 		sidebarWidth:  sidebarWidth,
 		mainWidth:     mainCenterArea,
-		contentHeight: m.Height * 85 / 100,
+		contentHeight: m.Height * 90 / 100,
 		inputHeight:   inputHeight,
 	}
 }

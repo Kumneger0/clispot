@@ -1,0 +1,24 @@
+[project]
+name = "ytmusic"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "browser-cookie3>=0.20.1",
+    "grpcio>=1.82.1",
+    "grpcio-tools>=1.82.1",
+    "protobuf>=7.35.1",
+    "pyinstaller>=6.21.0",
+    "yt-dlp>=2026.7.4",
+    "ytmusicapi>=1.12.1",
+]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.9",
+]
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
+extraPaths = ["grpc_server/gen"]

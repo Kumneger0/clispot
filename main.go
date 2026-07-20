@@ -8,10 +8,11 @@ import (
 
 var (
 	version = ""
+	Debug   = "false"
 )
 
 func main() {
-	err := cmd.Execute(version)
+	err := cmd.Execute(version, Debug == "true")
 	if err != nil {
 		slog.Error(err.Error())
 	}

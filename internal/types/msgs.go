@@ -2,6 +2,7 @@ package types // nolint:revive
 
 import (
 	"io"
+	"log/slog"
 
 	"github.com/ebitengine/oto/v3"
 	musicpb "github.com/kumneger0/clispot/gen"
@@ -83,6 +84,9 @@ func (b *ByteCounterReader) Read(p []byte) (int, error) {
 	n, err := b.R.Read(p)
 	if n > 0 {
 		b.total += n
+	}
+	if err != nil {
+		slog.Error(err.Error())
 	}
 	return n, err
 }

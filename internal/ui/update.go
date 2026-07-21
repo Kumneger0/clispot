@@ -172,6 +172,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.PlayerProcess == nil {
 			return m, nil
 		}
+		if err := m.PlayerProcess.OtoPlayer.Err(); err != nil {
+			slog.Error(err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
+			cmds = append(cmds, alertCmd)
+		}
 		if !m.PlayerProcess.OtoPlayer.IsPlaying() {
 			return m, nil
 		}
@@ -195,7 +200,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		trackID := m.SelectedTrack.Track.Track.ID
 
-		cmd := tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
+		cmd := tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
 			return types.UpdatePlayedSeconds{
 				TrackID: trackID,
 			}

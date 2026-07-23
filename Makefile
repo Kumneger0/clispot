@@ -3,24 +3,24 @@ projectname?=clispot
 default: help
 
 .PHONY: help
-help: 
+help: ## show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 
 .PHONY: build
-build: server-build
+build: server-build ## build the Go application
 	@echo "--> Building Go application..."
 	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
 
 
 .PHONY: install
-install: build 
+install: build ## build and install clispot to /usr/local/bin
 	@echo "--> Installing clispot to /usr/local/bin..."
 	@sudo cp $(projectname) /usr/local/bin/
 	@echo "--> Installation complete. Run 'clispot' to start."
 
 .PHONY: run
-run: build 
+run: build ## build and run clispot
 	@./$(projectname)
 
 .PHONY: bootstrap	

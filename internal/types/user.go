@@ -9,6 +9,11 @@ type UserTokenInfo struct {
 	ExpiresAt    int64  `json:"expires_at,omitempty"`
 }
 
+type InstallStep struct {
+	Command string
+	Args    []string
+}
+
 // UserSavedTracksListItem is a simple sidebar item representing the user's liked songs.
 type UserSavedTracksListItem struct {
 	Name string

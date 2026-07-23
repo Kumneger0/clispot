@@ -3,33 +3,24 @@ projectname?=clispot
 default: help
 
 .PHONY: help
-help: ## list makefile targets
+help: 
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-# ==============================================================================
-# Go Client Targets
-# ==============================================================================
-
-.PHONY: dev
-dev: build
-	@echo "--> Building Go application..."
-	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
 
 .PHONY: build
 build: server-build
-	@mkdir -p backend
-	@rm backend/main -f
-	@cp dist/main backend/
+	@echo "--> Building Go application..."
+	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
 
 
 .PHONY: install
-install: build ## install clispot to /usr/local/bin
+install: build 
 	@echo "--> Installing clispot to /usr/local/bin..."
 	@sudo cp $(projectname) /usr/local/bin/
 	@echo "--> Installation complete. Run 'clispot' to start."
 
 .PHONY: run
-run: dev ## build and run Go application
+run: build 
 	@./$(projectname)
 
 .PHONY: bootstrap	
@@ -72,6 +63,9 @@ hooks: ## install git commit-msg hook for commitlint (local)
 		.venv/bin/pyinstaller --onefile \
 		 --collect-data ytmusicapi \
 		 grpc_server/main.py 
+		@mkdir -p backend
+		@rm backend/main -f
+		@cp dist/main backend/
 
 .PHONY: proto
 proto: proto-python proto-go ## generate protobuf files for both python and go

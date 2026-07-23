@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -75,35 +74,14 @@ func SearchAndDownloadMusic(
 
 		appConfig := config.GetConfig()
 		logPathName := appConfig.DebugDir
-		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr"))
-
-		req, err := http.NewRequestWithContext(ctx, "GET", streamURL, nil)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			slog.Error(err.Error())
-			if ffStderr != nil {
-				_ = ffStderr.Close()
-			}
-			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			slog.Error(err.Error())
-			if ffStderr != nil {
-				_ = ffStderr.Close()
-			}
-			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
-		}
+		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
 
 		ff, _ := command.ExecCommand(
 			coreDepsPath.FFmpeg,
-			"-i", "pipe:0",
+			"-reconnect", "1",
+			"-reconnect_streamed", "1",
+			"-reconnect_delay_max", "5",
+			"-i", streamURL,
 			"-f", "s16le",
 			"-ac", "2",
 			"-ar", "44100",
@@ -112,12 +90,10 @@ func SearchAndDownloadMusic(
 
 		pr, pw := ringbuffer.New(1024 * 1024 * 5).Pipe()
 
-		ff.Stdin = resp.Body
 		ff.Stderr = ffStderr
 		ff.Stdout = pw
 
 		if err := ff.Start(); err != nil {
-			_ = resp.Body.Close()
 			_ = pw.Close()
 			_ = pr.Close()
 			if ffStderr != nil {
@@ -150,7 +126,6 @@ func SearchAndDownloadMusic(
 			}
 			_ = pw.Close()
 			_ = pr.Close()
-			_ = resp.Body.Close()
 			if ffStderr != nil {
 				_ = ffStderr.Close()
 			}
@@ -173,7 +148,6 @@ func SearchAndDownloadMusic(
 			}
 			_ = pw.Close()
 			_ = pr.Close()
-			_ = resp.Body.Close()
 			if ffStderr != nil {
 				_ = ffStderr.Close()
 			}
@@ -197,7 +171,6 @@ func SearchAndDownloadMusic(
 				}
 				_ = pw.CloseWithError(fmt.Errorf("player closed"))
 				_ = pr.Close()
-				_ = resp.Body.Close()
 				if player != nil {
 					player.Pause()
 					player.Close()

@@ -3,6 +3,7 @@ package types // nolint:revive
 import (
 	"io"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/ebitengine/oto/v3"
 	musicpb "github.com/kumneger0/clispot/gen"
@@ -52,6 +53,11 @@ type SpotifySearchResultMsg struct {
 	Err    error
 }
 
+type PythonBackendHealthResponseMsg struct {
+	Response *musicpb.HealthCheckResponse
+	Err      error
+}
+
 type CheckUserSavedTrackResponseMsg struct {
 	Saved bool
 	Err   error
@@ -77,22 +83,22 @@ type Player struct {
 
 type ByteCounterReader struct {
 	R     io.Reader
-	total int
+	total int64
 }
 
 func (b *ByteCounterReader) Read(p []byte) (int, error) {
 	n, err := b.R.Read(p)
 	if n > 0 {
-		b.total += n
+		atomic.AddInt64(&b.total, int64(n))
 	}
-	if err != nil {
+	if err != nil && err != io.EOF {
 		slog.Error(err.Error())
 	}
 	return n, err
 }
 
 func (b *ByteCounterReader) CurrentSeconds() float64 {
-	return float64(b.total) / 176400.0
+	return float64(atomic.LoadInt64(&b.total)) / 176400.0
 }
 
 type HomePageResponseMsg struct {

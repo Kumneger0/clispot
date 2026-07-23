@@ -11,13 +11,14 @@ help: ## list makefile targets
 # ==============================================================================
 
 .PHONY: dev
-dev: ## build Go application
+dev: build
 	@echo "--> Building Go application..."
 	@go build -ldflags "-X main.version=$(shell git describe --abbrev=0 --tags) -X main.Debug=true" -o $(projectname)
 
 .PHONY: build
 build: server-build
 	@mkdir -p backend
+	@rm backend/main -f
 	@cp dist/main backend/
 
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -39,6 +40,34 @@ func (m Model) getSearchResultModel(searchResponse *types.SearchResponse) (Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case types.PythonBackendHealthResponseMsg:
+		m.IsSearchLoading = false
+		if msg.Err != nil {
+			slog.Error(msg.Err.Error())
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
+			return m, alertCmd
+		}
+		if !msg.Response.Ok {
+			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, "Health Check Error")
+			return m, alertCmd
+		}
+		homePageFeed := func() tea.Msg {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			homePage, err := m.YtMusicClient.GetHomePage(ctx, &musicpb.GetHomePageRequest{})
+			if err != nil {
+				slog.Error(err.Error())
+				return types.HomePageResponseMsg{
+					Response: nil,
+					Err:      err,
+				}
+			}
+			return types.HomePageResponseMsg{
+				Response: homePage,
+				Err:      nil,
+			}
+		}
+		cmds = append(cmds, SendLoadingCmd(), homePageFeed)
 	case types.PlaylistDetailMsg:
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
@@ -82,6 +111,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			slog.Error(msg.Err.Error())
 			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
 			return m, alertCmd
+		}
+		if msg.Player == nil {
+			return m, nil
+		}
+		if m.SelectedTrack != nil && m.SelectedTrack.Track != nil && msg.VideoID != m.SelectedTrack.Track.Track.ID {
+			_ = msg.Player.Close()
+			return m, nil
 		}
 		cmd := func() tea.Msg {
 			if msg.Player != nil {
@@ -139,7 +175,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.IsSearchLoading = false
 		if msg.Err != nil {
 			slog.Error(msg.Err.Error())
-			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, "Failed Fetch homePage Content")
+			alertCmd = m.Alert.NewAlertCmd(bubbleup.ErrorKey, msg.Err.Error())
 			cmds = append(cmds, alertCmd)
 			return m, tea.Batch(cmds...)
 		}
@@ -431,11 +467,17 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		if m.FocusedOn == SearchBar {
 			return m, nil
 		}
+		_ = m.BackendProcess.Process.Signal(syscall.SIGTERM)
+		if m.playbackCancel != nil {
+			m.playbackCancel()
+			m.playbackCancel = nil
+		}
 		if m.PlayerProcess != nil {
 			err := m.PlayerProcess.Close()
 			if err != nil {
 				slog.Error(err.Error())
 			}
+			m.PlayerProcess = nil
 		}
 		return m, tea.Quit
 	case "tab":
@@ -1071,19 +1113,25 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 	for _, artist := range selectedMusic.Track.Artists {
 		artistNames = append(artistNames, artist.Name)
 	}
+	if m.playbackCancel != nil {
+		m.playbackCancel()
+		m.playbackCancel = nil
+	}
 	if m.PlayerProcess != nil {
 		err := m.PlayerProcess.Close()
 		if err != nil {
 			slog.Error(err.Error())
-			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
-			return m, alertCmd
 		}
+		m.PlayerProcess = nil
 	}
 
-	cmd := youtube.SearchAndDownloadMusic(selectedMusic.Track.ID, m.PlayerProcess == nil, m.CoreDepsPath, func() (string, error) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(ctx, &musicpb.GetVideoStreamURLRequest{
+	playCtx, cancel := context.WithCancel(context.Background())
+	m.playbackCancel = cancel
+
+	cmd := youtube.SearchAndDownloadMusic(playCtx, selectedMusic.Track.ID, m.CoreDepsPath, func() (string, error) {
+		reqCtx, reqCancel := context.WithTimeout(playCtx, 10*time.Second)
+		defer reqCancel()
+		getStreamURLResponse, err := m.YtMusicClient.GetVideoStreamURL(reqCtx, &musicpb.GetVideoStreamURLRequest{
 			VideoId: selectedMusic.Track.ID,
 		})
 		if err != nil {
@@ -1091,6 +1139,7 @@ func (m Model) PlaySelectedMusic(selectedMusic types.PlaylistTrackObject) (Model
 		}
 		return getStreamURLResponse.Url, nil
 	})
+
 	cmds = append(cmds, cmd)
 	metadata := getMusicMetadata(MusicMetadata{
 		artistName: strings.Join(artistNames, ","),

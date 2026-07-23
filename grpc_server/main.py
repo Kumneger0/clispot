@@ -1,9 +1,11 @@
 from concurrent import futures
+from types import FrameType
 import grpc
 import os
 import sys
 from pathlib import Path
-from typing import override
+from typing import Never, override
+import signal
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
@@ -117,6 +119,12 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     def __init__(self, auth_file: str) -> None:
         self.client: MusicClient = MusicClient(auth_file)
+    
+    @override
+    def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
+        return music_pb2.HealthCheckResponse(
+            ok=True
+        )
     @override
     def Login(self, request: music_pb2.LoginRequest, context: grpc.ServicerContext) -> music_pb2.LoginResponse:
         return music_pb2.LoginResponse(authenticated=True)
@@ -434,7 +442,15 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         
         return response
 
+def shutdown(signum: int, frame: FrameType | None)  -> Never:
+    print(f"Received {signal.Signals(signum).name}")
+    sys.exit(0)
+
+
+
 def serve() -> None:
+    _ = signal.signal(signal.SIGTERM, handler=shutdown)
+    _ = signal.signal(signal.SIGINT, shutdown) 
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     auth_file = str(Path.home() / ".config" / "ytmusic-tui" / "browser.json")
@@ -450,7 +466,3 @@ def serve() -> None:
 if __name__ == "__main__":
     serve()
 
- 
-
-
-    

@@ -271,7 +271,7 @@ func runRoot(cmd *cobra.Command) error {
 	}
 	defer func() {
 		if backendCmd != nil && backendCmd.Process != nil {
-			_ = backendCmd.Process.Kill()
+			_ = backendCmd.Process.Signal(syscall.SIGTERM)
 		}
 	}()
 	client, conn, err := ytMusicClient.GetYtMusicClient("localhost:50051")
@@ -287,6 +287,7 @@ func runRoot(cmd *cobra.Command) error {
 		MainViewMode:    ui.HomePageMode,
 		YtMusicClient:   client,
 		CoreDepsPath:    coreDepsPath,
+		BackendProcess:  backendCmd,
 	}
 	model.SearchResult = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)
 	model.HomePageList = list.New([]list.Item{}, ui.CustomDelegate{Model: &model}, 10, 20)

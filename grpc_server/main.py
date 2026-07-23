@@ -4,7 +4,7 @@ import grpc
 import os
 import sys
 from pathlib import Path
-from typing import Never, override
+from typing import Callable, override
 import signal
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -442,15 +442,17 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         
         return response
 
-def shutdown(signum: int, frame: FrameType | None)  -> Never:
-    print(f"Received {signal.Signals(signum).name}")
-    sys.exit(0)
+
+
+def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
+    def shutdown(signum: int, frame: FrameType | None) -> None:
+        print(f"Received {signal.Signals(signum).name}")
+        _ = server.stop(grace=5)
+    return shutdown
 
 
 
 def serve() -> None:
-    _ = signal.signal(signal.SIGTERM, handler=shutdown)
-    _ = signal.signal(signal.SIGINT, shutdown) 
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     auth_file = str(Path.home() / ".config" / "ytmusic-tui" / "browser.json")
@@ -460,9 +462,11 @@ def serve() -> None:
     _ = server.add_insecure_port("[::]:" + port)
     server.start()
     print("Server started, listening on " + port)
+    _ = signal.signal(signal.SIGTERM, handler=make_shutdown_handler(server=server))
+    _ = signal.signal(signal.SIGINT, make_shutdown_handler(server=server))     
     _ = server.wait_for_termination()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     serve()
 

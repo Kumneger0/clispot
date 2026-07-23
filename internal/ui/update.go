@@ -196,7 +196,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.SelectedTrack.isLiked = msg.Like
 		}
 	case types.PlayedSecondsUpdateMsg:
-		if m.SelectedTrack == nil {
+		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
 			return m, nil
 		}
 		m.PlayedSeconds = msg.CurrentSeconds

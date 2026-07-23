@@ -196,7 +196,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.SelectedTrack.isLiked = msg.Like
 		}
 	case types.PlayedSecondsUpdateMsg:
-		m.PlayedSeconds = m.PlayerProcess.ByteCounterReader.CurrentSeconds()
+		if m.SelectedTrack == nil {
+			return m, nil
+		}
+		m.PlayedSeconds = msg.CurrentSeconds
 		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationMS / 1000
 		if (float64(totalDurationInSeconds) - (m.PlayedSeconds)) < 1 {
 			m.PlayedSeconds = 0

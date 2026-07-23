@@ -1,12 +1,11 @@
 package youtube
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"net/http"
-
-	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,12 +15,11 @@ import (
 	"github.com/kumneger0/clispot/internal/command"
 	"github.com/kumneger0/clispot/internal/config"
 	"github.com/kumneger0/clispot/internal/types"
+	"github.com/smallnest/ringbuffer"
 )
 
 var otoContext *oto.Context
 var once sync.Once
-
-const SearchResultCount = 5
 
 func getOtoContext() (*oto.Context, chan struct{}, error) {
 	var readyChan chan struct{}
@@ -30,6 +28,7 @@ func getOtoContext() (*oto.Context, chan struct{}, error) {
 		ctx, ready, err := oto.NewContext(&oto.NewContextOptions{
 			SampleRate:   44100,
 			ChannelCount: 2,
+			BufferSize:   0,
 			Format:       oto.FormatSignedInt16LE,
 		})
 		readyChan = ready
@@ -44,12 +43,16 @@ type CoreDepsPath struct {
 }
 
 func SearchAndDownloadMusic(
+	ctx context.Context,
 	videoID string,
-	shouldWait bool,
 	coreDepsPath *CoreDepsPath,
 	getStreamURL func() (string, error),
 ) tea.Cmd {
 	return func() tea.Msg {
+		if ctx.Err() != nil {
+			return nil
+		}
+
 		if coreDepsPath == nil {
 			return types.SearchAndDownloadMusicMsg{
 				Player:  nil,
@@ -59,35 +62,70 @@ func SearchAndDownloadMusic(
 		}
 		streamURL, err := getStreamURL()
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
 			slog.Error(err.Error())
 			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
 		}
+
+		if ctx.Err() != nil {
+			return nil
+		}
+
 		appConfig := config.GetConfig()
 		logPathName := appConfig.DebugDir
-		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
+		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr"))
 
-		resp, err := http.Get(streamURL)
+		req, err := http.NewRequestWithContext(ctx, "GET", streamURL, nil)
 		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
 			slog.Error(err.Error())
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
 			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
 		}
 
-		ff, _ := command.ExecCommand(coreDepsPath.FFmpeg,
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			slog.Error(err.Error())
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
+			return types.SearchAndDownloadMusicMsg{Player: nil, VideoID: videoID, Err: err}
+		}
+
+		ff, _ := command.ExecCommand(
+			coreDepsPath.FFmpeg,
 			"-i", "pipe:0",
 			"-f", "s16le",
-			"-acodec", "pcm_s16le",
 			"-ac", "2",
 			"-ar", "44100",
 			"pipe:1",
 		)
 
+		pr, pw := ringbuffer.New(1024 * 1024 * 5).Pipe()
+
 		ff.Stdin = resp.Body
 		ff.Stderr = ffStderr
-
-		pr, pw := io.Pipe()
 		ff.Stdout = pw
 
 		if err := ff.Start(); err != nil {
+			_ = resp.Body.Close()
+			_ = pw.Close()
+			_ = pr.Close()
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
 			return types.SearchAndDownloadMusicMsg{
 				Player:  nil,
 				VideoID: videoID,
@@ -95,16 +133,51 @@ func SearchAndDownloadMusic(
 			}
 		}
 
+		go func() {
+			err := ff.Wait()
+			if err != nil {
+				slog.Info("ffmpeg exited", "err", err)
+				_ = pw.CloseWithError(fmt.Errorf("ffmpeg: %w", err))
+			} else {
+				_ = pw.Close()
+			}
+		}()
+
 		otoCtx, ready, err := getOtoContext()
 		if err != nil {
+			if ff.Process != nil {
+				_ = command.KillProcess(ff.Process)
+			}
+			_ = pw.Close()
+			_ = pr.Close()
+			_ = resp.Body.Close()
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
 			return types.SearchAndDownloadMusicMsg{
 				Player:  nil,
 				VideoID: videoID,
 				Err:     err,
 			}
 		}
-		if shouldWait {
+		if ready != nil {
 			<-ready
+		}
+
+		if ctx.Err() != nil {
+			if ff.Process != nil {
+				_ = command.KillProcess(ff.Process)
+			}
+			_ = pw.Close()
+			_ = pr.Close()
+			_ = resp.Body.Close()
+			if ffStderr != nil {
+				_ = ffStderr.Close()
+			}
+			return nil
 		}
 
 		counter := &types.ByteCounterReader{
@@ -112,45 +185,38 @@ func SearchAndDownloadMusic(
 		}
 
 		player := otoCtx.NewPlayer(counter)
-		go func() {
-			player.Play()
-		}()
+		player.SetBufferSize(0)
+		player.Play()
 
-		return types.SearchAndDownloadMusicMsg{Player: &types.Player{
-			OtoPlayer:         player,
-			ByteCounterReader: counter,
-			Close: func() error {
-				fmt.Println("close called")
-				var firstErr error
+		var once sync.Once
+		cleanup := func() error {
+			var closeErr error
+			once.Do(func() {
+				if ff.Process != nil {
+					_ = command.KillProcess(ff.Process)
+				}
+				_ = pw.CloseWithError(fmt.Errorf("player closed"))
+				_ = pr.Close()
+				_ = resp.Body.Close()
 				if player != nil {
+					player.Pause()
 					player.Close()
 				}
-				if err := resp.Body.Close(); err != nil {
-					slog.Error(err.Error())
-				}
-				if ff.Process != nil {
-					err := command.KillProcess(ff.Process)
-					if err != nil {
-						slog.Error(err.Error())
-						firstErr = err
-					}
-				}
-
-				_ = pw.Close()
-				_ = pr.Close()
-
 				if ffStderr != nil {
 					_ = ffStderr.Close()
 				}
+			})
+			return closeErr
+		}
 
-				return firstErr
+		return types.SearchAndDownloadMusicMsg{
+			Player: &types.Player{
+				OtoPlayer:         player,
+				ByteCounterReader: counter,
+				Close:             cleanup,
 			},
-		},
 			VideoID: videoID,
-			Err:     nil}
+			Err:     nil,
+		}
 	}
-}
-
-type ScanFuncArgs struct {
-	Line string
 }

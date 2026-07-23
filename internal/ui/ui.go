@@ -3,8 +3,8 @@ package ui
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +69,7 @@ type MusicQueueList struct {
 }
 
 type Model struct {
+	BackendProcess        *exec.Cmd
 	BreadcrumbItems       []types.Breadcrumb
 	SideBarList           list.Model
 	Alert                 bubbleup.AlertModel
@@ -77,6 +78,7 @@ type Model struct {
 	FocusedOn             FocusedOn
 	MainViewMode
 	PlayerProcess       *types.Player
+	playbackCancel      context.CancelFunc
 	SelectedTrack       *SelectedTrack
 	PlayedSeconds       float64
 	Height              int
@@ -124,23 +126,24 @@ func (m Model) Init() tea.Cmd {
 		}
 		return followedArtist
 	}
-	homePageFeed := func() tea.Msg {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		homePage, err := m.YtMusicClient.GetHomePage(ctx, &musicpb.GetHomePageRequest{})
-		if err != nil {
-			slog.Error(err.Error())
-			return types.HomePageResponseMsg{
-				Response: nil,
+	pythonBackendHealthCheckCmd := func() tea.Msg {
+		var count int
+		for {
+			time.Sleep(time.Second * 5)
+			count++
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			response, err := m.YtMusicClient.HealthCheck(ctx, &musicpb.HealthCheckRequest{})
+			if err != nil && count <= 5 {
+				continue
+			}
+			return types.PythonBackendHealthResponseMsg{
+				Response: response,
 				Err:      err,
 			}
 		}
-		return types.HomePageResponseMsg{
-			Response: homePage,
-			Err:      nil,
-		}
 	}
-	return tea.Batch(cmd, m.Alert.Init(), SendLoadingCmd(), homePageFeed)
+	return tea.Batch(cmd, m.Alert.Init(), SendLoadingCmd(), pythonBackendHealthCheckCmd)
 }
 
 func renderBreadcrumbs(items []types.Breadcrumb) string {

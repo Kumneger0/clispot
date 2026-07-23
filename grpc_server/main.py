@@ -1,9 +1,11 @@
 from concurrent import futures
+from types import FrameType
 import grpc
 import os
 import sys
 from pathlib import Path
-from typing import override
+from typing import Callable, override
+import signal
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gen")))
@@ -117,6 +119,12 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
 
     def __init__(self, auth_file: str) -> None:
         self.client: MusicClient = MusicClient(auth_file)
+    
+    @override
+    def HealthCheck(self, request:music_pb2.HealthCheckRequest, context:grpc.ServicerContext) -> music_pb2.HealthCheckResponse:
+        return music_pb2.HealthCheckResponse(
+            ok=True
+        )
     @override
     def Login(self, request: music_pb2.LoginRequest, context: grpc.ServicerContext) -> music_pb2.LoginResponse:
         return music_pb2.LoginResponse(authenticated=True)
@@ -434,6 +442,16 @@ class MusicService(music_pb2_grpc.MusicServiceServicer): # type: ignore
         
         return response
 
+
+
+def make_shutdown_handler(server: grpc.Server) -> Callable[..., None]:
+    def shutdown(signum: int, frame: FrameType | None) -> None:
+        print(f"Received {signal.Signals(signum).name}")
+        _ = server.stop(grace=5)
+    return shutdown
+
+
+
 def serve() -> None:
     port = "50051"
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -444,13 +462,11 @@ def serve() -> None:
     _ = server.add_insecure_port("[::]:" + port)
     server.start()
     print("Server started, listening on " + port)
+    _ = signal.signal(signal.SIGTERM, handler=make_shutdown_handler(server=server))
+    _ = signal.signal(signal.SIGINT, make_shutdown_handler(server=server))     
     _ = server.wait_for_termination()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     serve()
 
- 
-
-
-    

@@ -48,11 +48,18 @@ service MusicService {
 
   // Home Page
   rpc GetHomePage(GetHomePageRequest) returns (GetHomePageResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
 // ─────────────────────────────────────────────────────
 // Shared / reusable messages
 // ─────────────────────────────────────────────────────
+
+
+message HealthCheckRequest {}
+message HealthCheckResponse {
+  bool ok = 1;
+}
 
 message Song {
   string video_id = 1;

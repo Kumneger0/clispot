@@ -74,9 +74,16 @@ func SearchAndDownloadMusic(
 
 		appConfig := config.GetConfig()
 		logPathName := appConfig.DebugDir
-		ffStderr, _ := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
+		ffStderr, err := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
+		if err != nil {
+			return types.SearchAndDownloadMusicMsg{
+				Player:  nil,
+				VideoID: videoID,
+				Err:     err,
+			}
+		}
 
-		ff, _ := command.ExecCommand(
+		ff, _ := command.ExecCommand(ctx,
 			coreDepsPath.FFmpeg,
 			"-reconnect", "1",
 			"-reconnect_streamed", "1",

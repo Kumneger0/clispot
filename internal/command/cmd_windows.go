@@ -3,6 +3,7 @@
 package command
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -11,8 +12,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func ExecCommand(command string, args ...string) (*exec.Cmd, error) {
-	cmd := exec.Command(command, args...)
+func ExecCommand(ctx context.Context, command string, args ...string) (*exec.Cmd, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP,
 	}

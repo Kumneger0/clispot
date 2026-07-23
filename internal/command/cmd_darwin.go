@@ -3,12 +3,13 @@
 package command
 
 import (
+	"context"
 	"os"
 	"os/exec"
 )
 
-func ExecCommand(command string, args ...string) (*exec.Cmd, error) {
-	cmd := exec.Command(command, args...)
+func ExecCommand(ctx context.Context, command string, args ...string) (*exec.Cmd, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
 	return cmd, nil
 }
 

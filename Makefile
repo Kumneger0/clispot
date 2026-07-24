@@ -63,9 +63,11 @@ hooks: ## install git commit-msg hook for commitlint (local)
 		.venv/bin/pyinstaller --onefile \
 		 --collect-data ytmusicapi \
 		 grpc_server/main.py 
-		@mkdir -p backend
-		@rm backend/main -f
-		@cp dist/main backend/
+		`@mkdir` -p backend
+		`@tmp`=$$(mktemp backend/main.XXXXXX) && \
+			trap 'rm -f "$$tmp"' EXIT INT TERM && \
+			cp dist/main "$$tmp" && \
+			mv -f "$$tmp" backend/main
 
 .PHONY: proto
 proto: proto-python proto-go ## generate protobuf files for both python and go

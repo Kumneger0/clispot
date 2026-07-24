@@ -76,6 +76,7 @@ func SearchAndDownloadMusic(
 		logPathName := appConfig.DebugDir
 		ffStderr, err := os.Create(filepath.Join(*logPathName, "ffstderr.log"))
 		if err != nil {
+			slog.Error(err.Error())
 			return types.SearchAndDownloadMusicMsg{
 				Player:  nil,
 				VideoID: videoID,
@@ -83,17 +84,29 @@ func SearchAndDownloadMusic(
 			}
 		}
 
-		ff, _ := command.ExecCommand(ctx,
+		ff, err := command.ExecCommand(ctx,
 			coreDepsPath.FFmpeg,
 			"-reconnect", "1",
 			"-reconnect_streamed", "1",
 			"-reconnect_delay_max", "5",
+			"-reconnect_at_eof", "1",
+			"-reconnect_on_network_error", "1",
+			"-reconnect_on_http_error", "1",
 			"-i", streamURL,
 			"-f", "s16le",
 			"-ac", "2",
 			"-ar", "44100",
 			"pipe:1",
 		)
+
+		if err != nil {
+			slog.Error(err.Error())
+			return types.SearchAndDownloadMusicMsg{
+				Player:  nil,
+				VideoID: videoID,
+				Err:     err,
+			}
+		}
 
 		pr, pw := ringbuffer.New(1024 * 1024 * 5).Pipe()
 

@@ -334,6 +334,15 @@ func runRoot(cmd *cobra.Command) error {
 		}
 	}()
 
+	go func() {
+		if types.PlayedSecondsUpdateChan == nil {
+			return
+		}
+		for data := range types.PlayedSecondsUpdateChan {
+			Program.Send(data)
+		}
+	}()
+
 	_, err = Program.Run()
 	if err != nil {
 		slog.Error(err.Error())

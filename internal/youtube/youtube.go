@@ -100,6 +100,7 @@ func SearchAndDownloadMusic(
 		)
 
 		if err != nil {
+			_ = ffStderr.Close()
 			slog.Error(err.Error())
 			return types.SearchAndDownloadMusicMsg{
 				Player:  nil,

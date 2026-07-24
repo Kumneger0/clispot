@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -119,14 +118,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_ = msg.Player.Close()
 			return m, nil
 		}
-		cmd := func() tea.Msg {
-			if msg.Player != nil {
-				return types.UpdatePlayedSeconds{
-					TrackID: msg.VideoID,
-				}
-			}
-			return nil
-		}
 		likedCmd := func() tea.Msg {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -144,7 +135,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Err:   err,
 			}
 		}
-		cmds = append(cmds, cmd, likedCmd)
+		cmds = append(cmds, likedCmd)
 		m.PlayerProcess = msg.Player
 	case types.CheckUserSavedTrackResponseMsg:
 		if msg.Err != nil {
@@ -204,44 +195,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.TrackID == m.SelectedTrack.Track.Track.ID {
 			m.SelectedTrack.isLiked = msg.Like
 		}
-	case types.UpdatePlayedSeconds:
-		if m.PlayerProcess == nil {
-			return m, nil
-		}
-		if err := m.PlayerProcess.OtoPlayer.Err(); err != nil {
-			slog.Error(err.Error())
-			alertCmd := m.Alert.NewAlertCmd(bubbleup.ErrorKey, err.Error())
-			cmds = append(cmds, alertCmd)
-		}
-		if !m.PlayerProcess.OtoPlayer.IsPlaying() {
-			return m, nil
-		}
-
-		if m.SelectedTrack == nil || m.SelectedTrack.Track == nil {
-			return m, nil
-		}
-
-		if msg.TrackID != m.SelectedTrack.Track.Track.ID {
-			return m, nil
-		}
-
+	case types.PlayedSecondsUpdateMsg:
 		m.PlayedSeconds = m.PlayerProcess.ByteCounterReader.CurrentSeconds()
 		totalDurationInSeconds := m.SelectedTrack.Track.Track.DurationMS / 1000
-		if (float64(totalDurationInSeconds) - (m.PlayedSeconds)) < 4 {
+		if (float64(totalDurationInSeconds) - (m.PlayedSeconds)) < 1 {
 			m.PlayedSeconds = 0
 			model, cmd := m.handleMusicChange(true, false)
 			m = model
 			cmds = append(cmds, cmd)
 		}
-
-		trackID := m.SelectedTrack.Track.Track.ID
-
-		cmd := tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
-			return types.UpdatePlayedSeconds{
-				TrackID: trackID,
-			}
-		})
-		cmds = append(cmds, cmd)
 
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width - 4

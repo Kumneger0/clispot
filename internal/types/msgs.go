@@ -30,8 +30,10 @@ type UpdatePlaylistMsg struct {
 	ShouldAppend      bool
 }
 
-type UpdatePlayedSeconds struct {
-	TrackID string
+var PlayedSecondsUpdateChan = make(chan PlayedSecondsUpdateMsg, 10)
+
+type PlayedSecondsUpdateMsg struct {
+	CurrentSeconds float64
 }
 
 type MessageType string
@@ -93,6 +95,10 @@ func (b *ByteCounterReader) Read(p []byte) (int, error) {
 	}
 	if err != nil && err != io.EOF {
 		slog.Error(err.Error())
+	}
+
+	PlayedSecondsUpdateChan <- PlayedSecondsUpdateMsg{
+		CurrentSeconds: b.CurrentSeconds(),
 	}
 	return n, err
 }

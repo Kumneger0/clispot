@@ -28,3 +28,4 @@ wheels/
 browser.json
 gen/
 backend/main
+main.spec

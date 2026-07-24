@@ -92,14 +92,17 @@ func (b *ByteCounterReader) Read(p []byte) (int, error) {
 	n, err := b.R.Read(p)
 	if n > 0 {
 		atomic.AddInt64(&b.total, int64(n))
+		select {
+		case PlayedSecondsUpdateChan <- PlayedSecondsUpdateMsg{
+			CurrentSeconds: b.CurrentSeconds(),
+		}:
+		default:
+		}
 	}
 	if err != nil && err != io.EOF {
 		slog.Error(err.Error())
 	}
 
-	PlayedSecondsUpdateChan <- PlayedSecondsUpdateMsg{
-		CurrentSeconds: b.CurrentSeconds(),
-	}
 	return n, err
 }
 

@@ -30,7 +30,7 @@ type UpdatePlaylistMsg struct {
 	ShouldAppend      bool
 }
 
-var PlayedSecondsUpdateChan = make(chan PlayedSecondsUpdateMsg, 10)
+var PlayedSecondsUpdateChan = make(chan PlayedSecondsUpdateMsg)
 
 type PlayedSecondsUpdateMsg struct {
 	CurrentSeconds float64
@@ -92,17 +92,15 @@ func (b *ByteCounterReader) Read(p []byte) (int, error) {
 	n, err := b.R.Read(p)
 	if n > 0 {
 		atomic.AddInt64(&b.total, int64(n))
-		select {
-		case PlayedSecondsUpdateChan <- PlayedSecondsUpdateMsg{
-			CurrentSeconds: b.CurrentSeconds(),
-		}:
-		default:
-		}
+		go func() {
+			PlayedSecondsUpdateChan <- PlayedSecondsUpdateMsg{
+				CurrentSeconds: b.CurrentSeconds(),
+			}
+		}()
 	}
 	if err != nil && err != io.EOF {
 		slog.Error(err.Error())
 	}
-
 	return n, err
 }
 

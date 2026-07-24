@@ -240,10 +240,12 @@ message SearchResultSong {
   string album = 4;
   string album_id = 5;
   int32 duration_seconds = 6;
-  repeated Thumbnail thumbnails = 7;
-  bool is_explicit = 8;
-  string url = 9;
+  bool liked = 7;
+  repeated Thumbnail thumbnails = 8;
+  bool is_explicit = 9;
+  string url = 10;
 }
+
 
 message SearchResultAlbum {
   string browse_id = 1;
